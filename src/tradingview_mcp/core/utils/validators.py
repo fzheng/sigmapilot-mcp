@@ -11,6 +11,7 @@ EXCHANGE_SCREENER = {
     "gateio": "crypto",
     "binance": "crypto",
     "bitfinex": "crypto",
+    "bitget": "crypto",
     "bybit": "crypto",
     "okx": "crypto",
     "bist": "turkey",

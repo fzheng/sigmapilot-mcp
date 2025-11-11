@@ -26,6 +26,7 @@ EXCHANGE_SCREENER = {
     "hkex": "hongkong",     # Hong Kong Exchange
     "hk": "hongkong",       # Hong Kong (alternate)
     "hsi": "hongkong",      # Hang Seng Index constituents
+    "nyse": "america",
 }
 
 # Get absolute path to coinlist directory relative to this module

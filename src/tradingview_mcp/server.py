@@ -9,7 +9,27 @@ from mcp.server.fastmcp import FastMCP
 # Import bollinger band screener modules
 from tradingview_mcp.core.services.indicators import compute_metrics
 from tradingview_mcp.core.services.coinlist import load_symbols
-from tradingview_mcp.core.utils.validators import sanitize_timeframe, sanitize_exchange, EXCHANGE_SCREENER, ALLOWED_TIMEFRAMES
+from tradingview_mcp.core.utils.validators import (
+    sanitize_timeframe,
+    sanitize_exchange,
+    tf_to_tv_resolution,
+    EXCHANGE_SCREENER,
+    ALLOWED_TIMEFRAMES,
+    DEFAULT_BATCH_SIZE,
+    MAX_SYMBOLS_PER_SCAN,
+    STRONG_BODY_RATIO,
+    MODERATE_BODY_RATIO,
+    VOLUME_MINIMUM,
+    VOLUME_DECENT,
+    VOLUME_HIGH,
+    RSI_OVERBOUGHT,
+    RSI_OVERSOLD,
+    RSI_NEUTRAL_HIGH,
+    RSI_NEUTRAL_LOW,
+    BBW_HIGH_VOLATILITY,
+    BBW_MEDIUM_VOLATILITY,
+    ADX_STRONG_TREND,
+)
 
 try:
     from tradingview_ta import TA_Handler, get_multiple_analysis
@@ -31,8 +51,11 @@ class IndicatorMap(TypedDict, total=False):
 	SMA20: Optional[float]
 	BB_upper: Optional[float]
 	BB_lower: Optional[float]
+	EMA9: Optional[float]
+	EMA21: Optional[float]
 	EMA50: Optional[float]
 	RSI: Optional[float]
+	ATR: Optional[float]
 	volume: Optional[float]
 
 
@@ -55,8 +78,11 @@ def _map_indicators(raw: Dict[str, Any]) -> IndicatorMap:
 		SMA20=raw.get("SMA20"),
 		BB_upper=raw.get("BB.upper") if "BB.upper" in raw else raw.get("BB_upper"),
 		BB_lower=raw.get("BB.lower") if "BB.lower" in raw else raw.get("BB_lower"),
+		EMA9=raw.get("EMA9"),
+		EMA21=raw.get("EMA21"),
 		EMA50=raw.get("EMA50"),
 		RSI=raw.get("RSI"),
+		ATR=raw.get("ATR"),
 		volume=raw.get("volume"),
 	)
 
@@ -70,10 +96,9 @@ def _percent_change(o: Optional[float], c: Optional[float]) -> Optional[float]:
 		return None
 
 
-def _tf_to_tv_resolution(tf: Optional[str]) -> Optional[str]:
-	if not tf:
-		return None
-	return {"5m": "5", "15m": "15", "1h": "60", "4h": "240", "1D": "1D", "1W": "1W", "1M": "1M"}.get(tf)
+# Note: _tf_to_tv_resolution is now imported from validators as tf_to_tv_resolution
+# Creating an alias for backward compatibility within this module
+_tf_to_tv_resolution = tf_to_tv_resolution
 
 
 def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int = 50, bbw_filter: float = None) -> List[Row]:
@@ -127,8 +152,11 @@ def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int =
                     SMA20=indicators.get("SMA20"),
                     BB_upper=indicators.get("BB.upper"),
                     BB_lower=indicators.get("BB.lower"),
+                    EMA9=indicators.get("EMA9"),
+                    EMA21=indicators.get("EMA21"),
                     EMA50=indicators.get("EMA50"),
                     RSI=indicators.get("RSI"),
+                    ATR=indicators.get("ATR"),
                     volume=indicators.get("volume"),
                 )
             ))
@@ -193,8 +221,11 @@ def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: 
                         SMA20=indicators.get("SMA20"),
                         BB_upper=indicators.get("BB.upper"),
                         BB_lower=indicators.get("BB.lower"),
+                        EMA9=indicators.get("EMA9"),
+                        EMA21=indicators.get("EMA21"),
                         EMA50=indicators.get("EMA50"),
                         RSI=indicators.get("RSI"),
+                        ATR=indicators.get("ATR"),
                         volume=indicators.get("volume"),
                     )
                 ))
@@ -460,8 +491,11 @@ def coin_analysis(
                     "rsi_signal": "Overbought" if indicators.get("RSI", 0) > 70 else
                                  "Oversold" if indicators.get("RSI", 0) < 30 else "Neutral",
                     "sma20": round(indicators.get("SMA20", 0), 6),
+                    "ema9": round(indicators.get("EMA9", 0), 6),
+                    "ema21": round(indicators.get("EMA21", 0), 6),
                     "ema50": round(indicators.get("EMA50", 0), 6),
                     "ema200": round(indicators.get("EMA200", 0), 6),
+                    "atr": round(indicators.get("ATR", 0), 6),
                     "macd": round(macd, 6),
                     "macd_signal": round(macd_signal, 6),
                     "macd_divergence": round(macd - macd_signal, 6),

@@ -1,23 +1,21 @@
+"""
+TradingView Screener Provider Module.
+
+This module provides functions for fetching market data from TradingView
+using the tradingview-screener library. It handles:
+- Single timeframe indicator fetching
+- Multi-timeframe percentage change calculations
+- Exchange filtering and symbol management
+"""
+
 from __future__ import annotations
 from typing import List, Dict, Any, Optional
 
+# Import centralized timeframe conversion function
+from tradingview_mcp.core.utils.validators import tf_to_tv_resolution
 
-def _tf_to_tv_resolution(tf: Optional[str]) -> Optional[str]:
-    """Map our timeframe to TradingView resolution suffix used in columns.
-    Returns None if no mapping (means: no suffix).
-    """
-    if not tf:
-        return None
-    m = {
-        '5m': '5',
-        '15m': '15',
-        '1h': '60',
-        '4h': '240',
-        '1D': '1D',
-        '1W': '1W',
-        '1M': '1M',
-    }
-    return m.get(tf)
+# Create module-level alias for backward compatibility
+_tf_to_tv_resolution = tf_to_tv_resolution
 
 
 def fetch_screener_indicators(
@@ -124,17 +122,8 @@ def fetch_screener_multi_changes(
     if not timeframes:
         timeframes = ['15m', '1h', '4h', '1D']
 
-    def _tf_to_tv_resolution(tf: Optional[str]) -> Optional[str]:
-        mapping = {
-            '5m': '5',
-            '15m': '15',
-            '1h': '60',
-            '4h': '240',
-            '1D': '1D',
-            '1W': '1W',
-            '1M': '1M',
-        }
-        return mapping.get(tf or '')
+    # Note: Using the imported tf_to_tv_resolution from validators
+    # (previously had a local duplicate definition here)
 
     # Build suffix map and filter invalid tfs
     suffix_map: Dict[str, str] = {}

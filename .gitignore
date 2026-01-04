@@ -215,3 +215,5 @@ __marimo__/
 test_nyse.py
 scripts/fetch_nyse_tickers.py
 .claude/
+
+nul

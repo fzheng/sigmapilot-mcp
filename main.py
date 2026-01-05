@@ -26,6 +26,8 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings
 from pydantic import AnyHttpUrl
+from starlette.responses import JSONResponse
+from starlette.requests import Request
 
 # Auth0 JWT verification
 try:
@@ -449,26 +451,49 @@ def list_exchanges() -> dict:
 
 
 # =============================================================================
+# Health Check Endpoint
+# =============================================================================
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    """Health check endpoint for Railway and other deployment platforms."""
+    return JSONResponse({
+        "status": "healthy",
+        "service": "tradingview-mcp",
+        "version": "1.0.0",
+    })
+
+
+@mcp.custom_route("/", methods=["GET"])
+async def root_health(request: Request) -> JSONResponse:
+    """Root endpoint returns health status for convenience."""
+    return JSONResponse({
+        "status": "healthy",
+        "service": "tradingview-mcp",
+        "version": "1.0.0",
+    })
+
+
+# =============================================================================
 # Server Entry Point
 # =============================================================================
 
 def main():
     """Run the MCP server."""
-    import sys
-
     # Check if running in auth mode
     if ENABLE_AUTH:
-        print(f"🔐 Auth0 authentication enabled")
+        print(f"[AUTH] Auth0 authentication enabled")
         print(f"   Domain: {AUTH0_DOMAIN}")
         print(f"   Audience: {AUTH0_AUDIENCE}")
     else:
-        print("⚠️  Running without authentication (development mode)")
+        print("[WARN] Running without authentication (development mode)")
         print("   Set AUTH0_DOMAIN and AUTH0_AUDIENCE for production")
 
-    print(f"🚀 Starting TradingView MCP Server on {HOST}:{PORT}")
+    print(f"[START] TradingView MCP Server on {HOST}:{PORT}")
     print(f"   Endpoint: {RESOURCE_SERVER_URL}")
+    print(f"   Health check: http://{HOST}:{PORT}/health")
 
-    # Run the server with streamable HTTP transport for remote access
+    # Run with streamable HTTP transport (includes custom routes)
     mcp.run(transport="streamable-http")
 
 

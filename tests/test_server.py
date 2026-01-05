@@ -2,101 +2,17 @@
 Unit tests for the server module.
 
 Tests cover:
-- Helper functions: _map_indicators, _percent_change, _tf_to_tv_resolution
+- Helper functions: _percent_change, _tf_to_tv_resolution
 - Input validation and parameter handling
 - Type definitions: IndicatorMap, Row, MultiRow
 """
 
 import pytest
 from tradingview_mcp.server import (
-    _map_indicators,
     _percent_change,
     _tf_to_tv_resolution,
     IndicatorMap,
 )
-
-
-# =============================================================================
-# Tests for _map_indicators
-# =============================================================================
-
-class TestMapIndicators:
-    """Tests for the _map_indicators function."""
-
-    def test_maps_all_fields(self):
-        """Test that all indicator fields are mapped correctly."""
-        raw = {
-            "open": 100.0,
-            "close": 105.0,
-            "SMA20": 102.0,
-            "BB.upper": 110.0,
-            "BB.lower": 94.0,
-            "EMA9": 101.0,
-            "EMA21": 100.5,
-            "EMA50": 99.0,
-            "RSI": 65.0,
-            "ATR": 2.5,
-            "volume": 1000000.0,
-        }
-
-        result = _map_indicators(raw)
-
-        assert result["open"] == 100.0
-        assert result["close"] == 105.0
-        assert result["SMA20"] == 102.0
-        assert result["BB_upper"] == 110.0
-        assert result["BB_lower"] == 94.0
-        assert result["EMA9"] == 101.0
-        assert result["EMA21"] == 100.5
-        assert result["EMA50"] == 99.0
-        assert result["RSI"] == 65.0
-        assert result["ATR"] == 2.5
-        assert result["volume"] == 1000000.0
-
-    def test_handles_bb_upper_alternate_key(self):
-        """Test handling of BB_upper as alternate key for BB.upper."""
-        raw = {
-            "open": 100.0,
-            "close": 105.0,
-            "BB_upper": 110.0,  # Alternate key format
-            "BB_lower": 94.0,
-        }
-
-        result = _map_indicators(raw)
-        assert result["BB_upper"] == 110.0
-        assert result["BB_lower"] == 94.0
-
-    def test_prefers_dot_notation(self):
-        """Test that BB.upper takes precedence over BB_upper."""
-        raw = {
-            "BB.upper": 110.0,
-            "BB_upper": 108.0,  # Should be ignored
-            "BB.lower": 94.0,
-            "BB_lower": 92.0,  # Should be ignored
-        }
-
-        result = _map_indicators(raw)
-        assert result["BB_upper"] == 110.0
-        assert result["BB_lower"] == 94.0
-
-    def test_handles_missing_fields(self):
-        """Test handling of missing fields (returns None for missing)."""
-        raw = {
-            "open": 100.0,
-            "close": 105.0,
-        }
-
-        result = _map_indicators(raw)
-        assert result["open"] == 100.0
-        assert result["close"] == 105.0
-        assert result.get("SMA20") is None
-        assert result.get("RSI") is None
-
-    def test_empty_dict(self):
-        """Test handling of empty raw dict."""
-        result = _map_indicators({})
-        assert result.get("open") is None
-        assert result.get("close") is None
 
 
 # =============================================================================
@@ -233,32 +149,16 @@ class TestTypedDictDefinitions:
 class TestServerIntegration:
     """Integration tests for server helper functions."""
 
-    def test_full_indicator_pipeline(self):
-        """Test complete indicator processing pipeline."""
+    def test_percent_change_calculation(self):
+        """Test percent change calculation with raw indicator data."""
         # Raw data from TradingView
-        raw_data = {
-            "open": 100.0,
-            "close": 110.0,
-            "SMA20": 105.0,
-            "BB.upper": 115.0,
-            "BB.lower": 95.0,
-            "EMA9": 108.0,
-            "EMA21": 106.0,
-            "EMA50": 102.0,
-            "RSI": 72.0,
-            "ATR": 3.5,
-            "volume": 5000000.0,
-        }
-
-        # Map indicators
-        mapped = _map_indicators(raw_data)
+        open_price = 100.0
+        close_price = 110.0
 
         # Calculate percent change
-        change = _percent_change(mapped.get("open"), mapped.get("close"))
+        change = _percent_change(open_price, close_price)
 
         assert change == 10.0  # 10% gain
-        assert mapped["BB_upper"] == 115.0
-        assert mapped["RSI"] == 72.0
 
     def test_timeframe_resolution_all_valid(self):
         """Test all valid timeframe conversions."""

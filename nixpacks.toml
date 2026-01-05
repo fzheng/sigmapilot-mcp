@@ -1,0 +1,17 @@
+# Nixpacks configuration for Railway deployment
+
+[phases.setup]
+nixPkgs = ["python312", "gcc"]
+
+[phases.install]
+cmds = [
+  "curl -LsSf https://astral.sh/uv/install.sh | sh",
+  "export PATH=\"$HOME/.local/bin:$PATH\"",
+  "uv sync"
+]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "uv run python main.py"

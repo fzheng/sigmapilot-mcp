@@ -71,22 +71,6 @@ class MultiRow(TypedDict):
 	base_indicators: IndicatorMap
 
 
-def _map_indicators(raw: Dict[str, Any]) -> IndicatorMap:
-	return IndicatorMap(
-		open=raw.get("open"),
-		close=raw.get("close"),
-		SMA20=raw.get("SMA20"),
-		BB_upper=raw.get("BB.upper") if "BB.upper" in raw else raw.get("BB_upper"),
-		BB_lower=raw.get("BB.lower") if "BB.lower" in raw else raw.get("BB_lower"),
-		EMA9=raw.get("EMA9"),
-		EMA21=raw.get("EMA21"),
-		EMA50=raw.get("EMA50"),
-		RSI=raw.get("RSI"),
-		ATR=raw.get("ATR"),
-		volume=raw.get("volume"),
-	)
-
-
 def _percent_change(o: Optional[float], c: Optional[float]) -> Optional[float]:
 	try:
 		if o in (None, 0) or c is None:
@@ -367,9 +351,9 @@ def bollinger_scan(exchange: str = "KUCOIN", timeframe: str = "4h", bbw_threshol
 
 
 @mcp.tool()
-def rating_filter(exchange: str = "KUCOIN", timeframe: str = "5m", rating: int = 2, limit: int = 25) -> list[dict]:
+def rating_filter(exchange: str = "KUCOIN", timeframe: str = "15m", rating: int = 2, limit: int = 25) -> list[dict]:
     """Filter coins by Bollinger Band rating.
-    
+
     Args:
         exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
         timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
@@ -377,7 +361,7 @@ def rating_filter(exchange: str = "KUCOIN", timeframe: str = "5m", rating: int =
         limit: Number of rows to return (max 50)
     """
     exchange = sanitize_exchange(exchange, "KUCOIN")
-    timeframe = sanitize_timeframe(timeframe, "5m")
+    timeframe = sanitize_timeframe(timeframe, "15m")
     rating = max(-3, min(3, rating))
     limit = max(1, min(limit, 50))
     

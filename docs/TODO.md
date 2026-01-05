@@ -1,27 +1,22 @@
-# TradingView MCP Server - Development TODO
+# TradingView MCP Server v1.0.0 - Development TODO
 
 This document tracks development tasks, improvements, and known issues.
 
+## Completed in v1.0.0
+
+- [x] Remote deployment support (Railway + Auth0)
+- [x] Auth0 JWT verification using JWKS endpoint
+- [x] Centralized `tf_to_tv_resolution` function in validators.py
+- [x] Extracted magic numbers to constants
+- [x] Comprehensive test suite (183+ tests)
+- [x] Documentation overhaul (remote-first approach)
+- [x] Add EMA9, EMA21, ATR indicators
+- [x] Create comprehensive test suite
+- [x] Reorganize documentation structure
+- [x] Create `create_mcp_server()` factory function
+- [x] Unit tests for `auth.py` JWT verifier
+
 ## High Priority
-
-### Code Quality
-
-- [ ] **Centralize `_tf_to_tv_resolution` function**
-  - Location: Currently duplicated in `server.py:79-82` and `screener_provider.py:5-20`
-  - Action: Move to `validators.py` and import from there
-  - Impact: Reduces code duplication, single source of truth
-
-- [ ] **Standardize error responses**
-  - Current: Some tools return `{}`, others `{"error": "..."}`
-  - Action: All tools should return `{"error": "message", ...context}` on failure
-  - Impact: Consistent API behavior for consumers
-
-- [ ] **Extract magic numbers to constants**
-  - `batch_size = 200` (server.py:165)
-  - `limit * 2` multipliers (server.py:96)
-  - Pattern thresholds: `0.6`, `0.7` (server.py:610, 845)
-  - Volume thresholds: `1000`, `5000`, `10000`
-  - Action: Create constants module or add to validators.py
 
 ### Testing
 
@@ -29,17 +24,25 @@ This document tracks development tasks, improvements, and known issues.
 - [x] Unit tests for `validators.py`
 - [x] Unit tests for `coinlist.py`
 - [x] Unit tests for server helper functions
+- [x] Unit tests for `auth.py` JWT verifier
+- [x] Tests for `main.py` remote server entry point
 - [ ] Integration tests with mock TradingView API
 - [ ] End-to-end tests for MCP tools
+
+### Infrastructure
+
+- [ ] Set up GitHub Actions for CI/CD
+- [ ] Add code coverage reporting to CI
+- [ ] Automated Railway deployment on push
 
 ## Medium Priority
 
 ### Documentation
 
-- [ ] Add docstrings to all helper functions in `server.py`
-- [ ] Document the Bollinger Band rating algorithm
-- [ ] Add inline comments explaining complex logic
-- [ ] Create API reference documentation
+- [x] Document remote deployment process
+- [x] Update installation guide for v1.0.0
+- [ ] Add API reference documentation
+- [ ] Add troubleshooting guide for Auth0
 
 ### Code Organization
 
@@ -58,9 +61,8 @@ This document tracks development tasks, improvements, and known issues.
 ### Developer Experience
 
 - [ ] Add pre-commit hooks for Black/Ruff
-- [ ] Set up GitHub Actions for CI/CD
-- [ ] Add code coverage reporting
 - [ ] Create development container configuration
+- [ ] Add Docker deployment option
 
 ### Features (Future)
 
@@ -69,13 +71,7 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] Historical data analysis tools
 - [ ] Alert/notification system
 - [ ] WebSocket support for real-time data
-
-## Completed
-
-- [x] Add EMA9, EMA21, ATR indicators
-- [x] Create comprehensive test suite
-- [x] Reorganize documentation structure
-- [x] Create TODO documentation
+- [ ] Multiple auth provider support (Google, GitHub)
 
 ## Notes
 
@@ -108,3 +104,10 @@ def some_tool(...) -> dict:
             "context": {...}
         }
 ```
+
+### Remote Deployment Notes
+
+- Auth0 is the recommended OAuth provider
+- Railway free tier: 500 hours/month
+- Always set `RESOURCE_SERVER_URL` to match your public URL
+- Never commit `.env` files

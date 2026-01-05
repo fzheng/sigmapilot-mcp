@@ -6,7 +6,6 @@ This guide covers both remote deployment (recommended) and local installation op
 
 - **Python 3.11+** (required for mcp-oauth)
 - **UV Package Manager** (for dependency management)
-- **Claude Desktop** (for MCP integration)
 - **Internet Connection** (for TradingView data access)
 
 For remote deployment, you'll also need:
@@ -15,7 +14,11 @@ For remote deployment, you'll also need:
 
 ## Option 1: Remote Deployment (Recommended)
 
-Deploy as a secure remote MCP server accessible from anywhere.
+Deploy as a secure remote MCP server accessible from **any MCP-compatible AI platform**:
+- **Claude.ai** - Via [Connectors](https://claude.ai/settings/connectors) ([documentation](https://support.claude.com/en/articles/11724452-using-the-connectors-directory-to-extend-claude-s-capabilities))
+- **ChatGPT** - Via MCP plugin support
+- **Claude Desktop** - Via config file
+- **Other AI platforms** - Any service supporting MCP protocol
 
 See [Remote Deployment Guide](REMOTE_DEPLOYMENT.md) for complete instructions.
 
@@ -24,7 +27,7 @@ See [Remote Deployment Guide](REMOTE_DEPLOYMENT.md) for complete instructions.
 1. Fork this repository to your GitHub
 2. Create Auth0 API at [auth0.com](https://auth0.com)
 3. Deploy to Railway and add environment variables
-4. Connect Claude Desktop to your remote URL
+4. Connect via Claude.ai Connectors, ChatGPT, or Claude Desktop
 
 ## Option 2: Local Installation
 

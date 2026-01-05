@@ -290,12 +290,11 @@ We follow [Semantic Versioning](https://semver.org/):
 - **Patch (0.0.X):** Bug fixes, backward compatible
 
 ### Release Checklist:
-1. Update version in `pyproject.toml`
-2. Update CHANGELOG.md
-3. Run full test suite
-4. Create release tag
-5. Update documentation
-6. Announce in community channels
+1. Update version in `pyproject.toml` and `src/tradingview_mcp/__init__.py`
+2. Run full test suite
+3. Create GitHub release with release notes
+4. Update documentation
+5. Announce in community channels
 
 ## 🏆 Recognition
 
@@ -324,20 +323,6 @@ We recognize valuable contributions:
 - **How to debug API rate limits?** Use MCP Inspector with verbose logging
 - **Adding new timeframes?** Check TradingView screener support first  
 - **Performance optimization?** Focus on reducing API calls and caching
-
-## 🎯 Project Goals
-
-### Short-term (Q1 2025):
-- [ ] Add support for 5 more exchanges
-- [ ] Implement advanced pattern recognition
-- [ ] Improve error handling and fallbacks
-- [ ] Add comprehensive test suite
-
-### Long-term (2025):
-- [ ] Real-time WebSocket data feeds
-- [ ] Custom indicator framework
-- [ ] Portfolio tracking capabilities
-- [ ] Advanced backtesting tools
 
 ## 📜 Code of Conduct
 

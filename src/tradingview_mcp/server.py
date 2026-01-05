@@ -1,3 +1,30 @@
+"""
+TradingView MCP Server - Local Entry Point (stdio mode).
+
+This module provides the main MCP server implementation for cryptocurrency and
+stock market analysis using TradingView data. It offers tools for market screening,
+technical analysis, and pattern detection.
+
+Features:
+    - Top gainers/losers screening by exchange and timeframe
+    - Bollinger Band analysis and squeeze detection
+    - Consecutive candle pattern detection
+    - Volume breakout scanning
+    - Single coin detailed analysis
+
+Usage:
+    # Run as stdio server (for Claude Desktop)
+    uv run python src/tradingview_mcp/server.py
+
+    # Run as HTTP server
+    uv run python src/tradingview_mcp/server.py streamable-http --port 8000
+
+Environment Variables:
+    DEBUG_MCP: Enable debug logging (set to any value)
+    HOST: Server host for HTTP mode (default: 127.0.0.1)
+    PORT: Server port for HTTP mode (default: 8000)
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +33,7 @@ from typing import Any, Dict, List, Optional
 from typing_extensions import TypedDict
 from mcp.server.fastmcp import FastMCP
 
-# Import bollinger band screener modules
+# Import core analysis modules
 from tradingview_mcp.core.services.indicators import compute_metrics
 from tradingview_mcp.core.services.coinlist import load_symbols
 from tradingview_mcp.core.utils.validators import (
@@ -31,6 +58,12 @@ from tradingview_mcp.core.utils.validators import (
     ADX_STRONG_TREND,
 )
 
+# =============================================================================
+# Optional Dependencies
+# =============================================================================
+# These libraries provide TradingView data access. The server gracefully handles
+# their absence by disabling features that depend on them.
+
 try:
     from tradingview_ta import TA_Handler, get_multiple_analysis
     TRADINGVIEW_TA_AVAILABLE = True
@@ -45,48 +78,91 @@ except ImportError:
     TRADINGVIEW_SCREENER_AVAILABLE = False
 
 
+# =============================================================================
+# Type Definitions
+# =============================================================================
+
 class IndicatorMap(TypedDict, total=False):
-	open: Optional[float]
-	close: Optional[float]
-	SMA20: Optional[float]
-	BB_upper: Optional[float]
-	BB_lower: Optional[float]
-	EMA9: Optional[float]
-	EMA21: Optional[float]
-	EMA50: Optional[float]
-	RSI: Optional[float]
-	ATR: Optional[float]
-	volume: Optional[float]
+    """Type definition for technical indicator data from TradingView."""
+    open: Optional[float]
+    close: Optional[float]
+    SMA20: Optional[float]
+    BB_upper: Optional[float]
+    BB_lower: Optional[float]
+    EMA9: Optional[float]
+    EMA21: Optional[float]
+    EMA50: Optional[float]
+    RSI: Optional[float]
+    ATR: Optional[float]
+    volume: Optional[float]
 
 
 class Row(TypedDict):
-	symbol: str
-	changePercent: float
-	indicators: IndicatorMap
+    """Single timeframe analysis result for a symbol."""
+    symbol: str
+    changePercent: float
+    indicators: IndicatorMap
 
 
 class MultiRow(TypedDict):
-	symbol: str
-	changes: dict[str, Optional[float]]
-	base_indicators: IndicatorMap
+    """Multi-timeframe analysis result with price changes across periods."""
+    symbol: str
+    changes: dict[str, Optional[float]]  # Timeframe -> percent change
+    base_indicators: IndicatorMap
 
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
 
 def _percent_change(o: Optional[float], c: Optional[float]) -> Optional[float]:
-	try:
-		if o in (None, 0) or c is None:
-			return None
-		return (c - o) / o * 100
-	except Exception:
-		return None
+    """
+    Calculate percentage change between open and close prices.
+
+    Args:
+        o: Open price
+        c: Close price
+
+    Returns:
+        Percentage change as float, or None if calculation not possible
+
+    Example:
+        >>> _percent_change(100.0, 105.0)
+        5.0
+    """
+    try:
+        if o in (None, 0) or c is None:
+            return None
+        return (c - o) / o * 100
+    except Exception:
+        return None
 
 
-# Note: _tf_to_tv_resolution is now imported from validators as tf_to_tv_resolution
-# Creating an alias for backward compatibility within this module
+# Alias for backward compatibility - tf_to_tv_resolution converts user-friendly
+# timeframes (e.g., "15m", "1h") to TradingView's internal format (e.g., "15", "60")
 _tf_to_tv_resolution = tf_to_tv_resolution
 
 
 def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int = 50, bbw_filter: float = None) -> List[Row]:
-    """Fetch analysis using tradingview_ta with bollinger band logic from the original screener."""
+    """
+    Fetch Bollinger Band analysis data for symbols on an exchange.
+
+    Uses tradingview_ta library to get real-time indicator data and computes
+    Bollinger Band metrics including band width (BBW), rating, and signal.
+
+    Args:
+        exchange: Exchange name (e.g., "KUCOIN", "BINANCE")
+        timeframe: TradingView interval (e.g., "4h", "1D")
+        limit: Maximum number of results to return
+        bbw_filter: Optional BBW threshold - only return symbols with BBW below this value
+                    (used for squeeze detection)
+
+    Returns:
+        List of Row objects sorted by change percentage (highest first)
+
+    Raises:
+        RuntimeError: If tradingview_ta is not available or API call fails
+    """
     if not TRADINGVIEW_TA_AVAILABLE:
         raise RuntimeError("tradingview_ta is missing; run `uv sync`.")
     
@@ -156,7 +232,26 @@ def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int =
 
 
 def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: str = "", rating_filter: int = None, limit: int = 50) -> List[Row]:
-    """Fetch trending coins analysis similar to the original app's trending endpoint."""
+    """
+    Fetch trending coins with technical analysis data.
+
+    Processes symbols in batches to handle large exchanges while respecting
+    TradingView API rate limits. Supports filtering by Bollinger Band rating.
+
+    Args:
+        exchange: Exchange name (e.g., "KUCOIN", "BINANCE")
+        timeframe: TradingView interval (e.g., "5m", "15m", "1h")
+        filter_type: Optional filter - use "rating" to enable rating_filter
+        rating_filter: When filter_type="rating", only return symbols with this
+                       Bollinger Band rating (-3 to +3)
+        limit: Maximum number of results to return
+
+    Returns:
+        List of Row objects sorted by change percentage (highest first)
+
+    Raises:
+        RuntimeError: If tradingview_ta is not available or no symbols found
+    """
     if not TRADINGVIEW_TA_AVAILABLE:
         raise RuntimeError("tradingview_ta is missing; run `uv sync`.")
     
@@ -222,69 +317,99 @@ def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: 
     
     return all_coins[:limit]
 def _fetch_multi_changes(exchange: str, timeframes: List[str] | None, base_timeframe: str = "4h", limit: int | None = None, cookies: Any | None = None) -> List[MultiRow]:
-	try:
-		from tradingview_screener import Query
-		from tradingview_screener.column import Column
-	except Exception as e:
-		raise RuntimeError("tradingview-screener missing; run `uv sync`.") from e
+    """
+    Fetch price changes across multiple timeframes using tradingview-screener.
 
-	tfs = timeframes or ["15m", "1h", "4h", "1D"]
-	suffix_map: dict[str, str] = {}
-	for tf in tfs:
-		s = _tf_to_tv_resolution(tf)
-		if s:
-			suffix_map[tf] = s
-	if not suffix_map:
-		suffix_map = {base_timeframe: _tf_to_tv_resolution(base_timeframe) or "240"}
+    This function queries TradingView's screener API to get OHLC data across
+    multiple timeframes simultaneously, allowing comparison of performance
+    across different periods.
 
-	base_suffix = _tf_to_tv_resolution(base_timeframe) or next(iter(suffix_map.values()))
-	cols: list[str] = []
-	seen: set[str] = set()
-	for tf, s in suffix_map.items():
-		for c in (f"open|{s}", f"close|{s}"):
-			if c not in seen:
-				cols.append(c)
-				seen.add(c)
-	for c in (f"SMA20|{base_suffix}", f"BB.upper|{base_suffix}", f"BB.lower|{base_suffix}", f"volume|{base_suffix}"):
-		if c not in seen:
-			cols.append(c)
-			seen.add(c)
+    Args:
+        exchange: Exchange name (e.g., "KUCOIN", "BINANCE")
+        timeframes: List of timeframes to analyze (e.g., ["15m", "1h", "4h", "1D"])
+                    If None, defaults to ["15m", "1h", "4h", "1D"]
+        base_timeframe: Primary timeframe for indicator calculations
+        limit: Maximum number of symbols to return
+        cookies: Optional cookies for authenticated requests
 
-	q = Query().set_markets("crypto").select(*cols)
-	if exchange:
-		q = q.where(Column("exchange") == exchange.upper())
-	if limit:
-		q = q.limit(int(limit))
+    Returns:
+        List of MultiRow objects containing symbol, changes per timeframe,
+        and base indicators
 
-	_total, df = q.get_scanner_data(cookies=cookies)
-	if df is None or df.empty:
-		return []
+    Raises:
+        RuntimeError: If tradingview-screener is not available
+    """
+    try:
+        from tradingview_screener import Query
+        from tradingview_screener.column import Column
+    except Exception as e:
+        raise RuntimeError("tradingview-screener missing; run `uv sync`.") from e
 
-	out: List[MultiRow] = []
-	for _, r in df.iterrows():
-		symbol = r.get("ticker")
-		changes: dict[str, Optional[float]] = {}
-		for tf, s in suffix_map.items():
-			o = r.get(f"open|{s}")
-			c = r.get(f"close|{s}")
-			changes[tf] = _percent_change(o, c)
-		base_ind = IndicatorMap(
-			open=r.get(f"open|{base_suffix}"),
-			close=r.get(f"close|{base_suffix}"),
-			SMA20=r.get(f"SMA20|{base_suffix}"),
-			BB_upper=r.get(f"BB.upper|{base_suffix}"),
-			BB_lower=r.get(f"BB.lower|{base_suffix}"),
-			volume=r.get(f"volume|{base_suffix}"),
-		)
-		out.append(MultiRow(symbol=symbol, changes=changes, base_indicators=base_ind))
-	return out
+    tfs = timeframes or ["15m", "1h", "4h", "1D"]
+    suffix_map: dict[str, str] = {}
+    for tf in tfs:
+        s = _tf_to_tv_resolution(tf)
+        if s:
+            suffix_map[tf] = s
+    if not suffix_map:
+        suffix_map = {base_timeframe: _tf_to_tv_resolution(base_timeframe) or "240"}
 
+    base_suffix = _tf_to_tv_resolution(base_timeframe) or next(iter(suffix_map.values()))
+    cols: list[str] = []
+    seen: set[str] = set()
+    for tf, s in suffix_map.items():
+        for c in (f"open|{s}", f"close|{s}"):
+            if c not in seen:
+                cols.append(c)
+                seen.add(c)
+    for c in (f"SMA20|{base_suffix}", f"BB.upper|{base_suffix}", f"BB.lower|{base_suffix}", f"volume|{base_suffix}"):
+        if c not in seen:
+            cols.append(c)
+            seen.add(c)
+
+    q = Query().set_markets("crypto").select(*cols)
+    if exchange:
+        q = q.where(Column("exchange") == exchange.upper())
+    if limit:
+        q = q.limit(int(limit))
+
+    _total, df = q.get_scanner_data(cookies=cookies)
+    if df is None or df.empty:
+        return []
+
+    out: List[MultiRow] = []
+    for _, r in df.iterrows():
+        symbol = r.get("ticker")
+        changes: dict[str, Optional[float]] = {}
+        for tf, s in suffix_map.items():
+            o = r.get(f"open|{s}")
+            c = r.get(f"close|{s}")
+            changes[tf] = _percent_change(o, c)
+        base_ind = IndicatorMap(
+            open=r.get(f"open|{base_suffix}"),
+            close=r.get(f"close|{base_suffix}"),
+            SMA20=r.get(f"SMA20|{base_suffix}"),
+            BB_upper=r.get(f"BB.upper|{base_suffix}"),
+            BB_lower=r.get(f"BB.lower|{base_suffix}"),
+            volume=r.get(f"volume|{base_suffix}"),
+        )
+        out.append(MultiRow(symbol=symbol, changes=changes, base_indicators=base_ind))
+    return out
+
+
+# =============================================================================
+# MCP Server Initialization
+# =============================================================================
 
 mcp = FastMCP(
 	name="TradingView Screener",
 	instructions=("Crypto screener utilities backed by TradingView Screener. Tools: top_gainers, top_losers, multi_changes."),
 )
 
+
+# =============================================================================
+# MCP Tools - Market Screening
+# =============================================================================
 
 @mcp.tool()
 def top_gainers(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 25) -> list[dict]:
@@ -372,6 +497,10 @@ def rating_filter(exchange: str = "KUCOIN", timeframe: str = "15m", rating: int 
         "changePercent": row["changePercent"],
         "indicators": dict(row["indicators"])
     } for row in rows]
+
+# =============================================================================
+# MCP Tools - Single Coin Analysis
+# =============================================================================
 
 @mcp.tool()
 def coin_analysis(
@@ -511,6 +640,10 @@ def coin_analysis(
             "exchange": exchange,
             "timeframe": timeframe
         }
+
+# =============================================================================
+# MCP Tools - Pattern Detection
+# =============================================================================
 
 @mcp.tool()
 def consecutive_candles_scan(
@@ -820,7 +953,27 @@ def advanced_candle_pattern(
         }
 
 def _calculate_candle_pattern_score(indicators: dict, pattern_length: int, min_increase: float) -> dict:
-    """Calculate candle pattern score based on available indicators."""
+    """
+    Calculate a pattern detection score based on candle and indicator data.
+
+    Analyzes current candle characteristics (body ratio, price change) along with
+    technical indicators (RSI, EMA) to score the strength of a potential pattern.
+
+    Args:
+        indicators: Dictionary of TradingView indicator values
+        pattern_length: Number of consecutive periods (used for context)
+        min_increase: Minimum price change threshold for "strong momentum"
+
+    Returns:
+        Dictionary containing:
+            - detected: Boolean indicating if pattern meets threshold
+            - score: Numeric score (0-7+) based on conditions met
+            - details: List of human-readable condition descriptions
+            - price: Current close price
+            - total_change: Percentage price change
+            - body_ratio: Candle body to range ratio
+            - volume: Current volume
+    """
     try:
         open_price = indicators.get("open", 0)
         close_price = indicators.get("close", 0)
@@ -892,7 +1045,23 @@ def _calculate_candle_pattern_score(indicators: dict, pattern_length: int, min_i
         return {"detected": False, "score": 0, "error": str(e)}
 
 def _fetch_multi_timeframe_patterns(exchange: str, symbols: List[str], base_tf: str, length: int, min_increase: float) -> List[dict]:
-    """Fetch multi-timeframe pattern data using tradingview-screener."""
+    """
+    Fetch and analyze multi-timeframe patterns using tradingview-screener.
+
+    Queries TradingView's screener API for OHLC and indicator data, then
+    applies pattern scoring to identify symbols with strong patterns.
+
+    Args:
+        exchange: Exchange name (e.g., "KUCOIN", "BINANCE")
+        symbols: List of symbols to analyze
+        base_tf: Base timeframe for analysis (e.g., "15m", "1h")
+        length: Pattern length parameter passed to scoring
+        min_increase: Minimum increase threshold for pattern detection
+
+    Returns:
+        List of dictionaries with pattern scores, sorted by score descending.
+        Each entry contains symbol, pattern_score, price, change, etc.
+    """
     try:
         from tradingview_screener import Query
         from tradingview_screener.column import Column
@@ -966,9 +1135,22 @@ def _fetch_multi_timeframe_patterns(exchange: str, symbols: List[str], base_tf: 
     except Exception as e:
         return []
 
+# =============================================================================
+# MCP Resources
+# =============================================================================
+
 @mcp.resource("exchanges://list")
 def exchanges_list() -> str:
-    """List available exchanges from coinlist directory."""
+    """
+    List available exchanges from coinlist directory.
+
+    Scans the coinlist directory for .txt files, each representing an exchange's
+    symbol list. Returns a formatted string of available exchanges.
+
+    Returns:
+        String listing available exchanges, or fallback static list if directory
+        not accessible.
+    """
     try:
         import os
         # Get the directory where this module is located
@@ -989,82 +1171,72 @@ def exchanges_list() -> str:
         return "Common exchanges: KUCOIN, BINANCE, BYBIT, BITGET, OKX, COINBASE, GATEIO, HUOBI, BITFINEX, KRAKEN, BITSTAMP, BIST, NASDAQ"
     except Exception:
         return "Common exchanges: KUCOIN, BINANCE, BYBIT, BITGET, OKX, COINBASE, GATEIO, HUOBI, BITFINEX, KRAKEN, BITSTAMP, BIST, NASDAQ"
-def main() -> None:
-	parser = argparse.ArgumentParser(description="TradingView Screener MCP server")
-	parser.add_argument("transport", choices=["stdio", "streamable-http"], default="stdio", nargs="?", help="Transport (default stdio)")
-	parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
-	parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
-	args = parser.parse_args()
 
-	if os.environ.get("DEBUG_MCP"):
-		import sys
-		print(f"[DEBUG_MCP] pkg cwd={os.getcwd()} argv={sys.argv} file={__file__}", file=sys.stderr, flush=True)
 
-	if args.transport == "stdio":
-		mcp.run()
-	else:
-		try:
-			mcp.settings.host = args.host
-			mcp.settings.port = args.port
-		except Exception:
-			pass
-		mcp.run(transport="streamable-http")
-
+# =============================================================================
+# MCP Tools - Volume Analysis
+# =============================================================================
 
 @mcp.tool()
 def volume_breakout_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", volume_multiplier: float = 2.0, price_change_min: float = 3.0, limit: int = 25) -> list[dict]:
 	"""Detect coins with volume breakout + price breakout.
-	
+
+	Identifies symbols where current volume significantly exceeds average volume
+	while also showing notable price movement - a potential breakout signal.
+
 	Args:
 		exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
 		timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
 		volume_multiplier: How many times the volume should be above normal level (default 2.0)
 		price_change_min: Minimum price change percentage (default 3.0)
 		limit: Number of rows to return (max 50)
+
+	Returns:
+		List of coins with volume breakout signals, sorted by volume strength
 	"""
 	exchange = sanitize_exchange(exchange, "KUCOIN")
 	timeframe = sanitize_timeframe(timeframe, "15m")
 	volume_multiplier = max(1.5, min(10.0, volume_multiplier))
 	price_change_min = max(1.0, min(20.0, price_change_min))
 	limit = max(1, min(limit, 50))
-	
+
 	# Get symbols
 	symbols = load_symbols(exchange)
 	if not symbols:
 		return []
-	
+
 	screener = EXCHANGE_SCREENER.get(exchange, "crypto")
 	volume_breakouts = []
-	
+
 	# Process in batches
 	batch_size = 100
 	for i in range(0, min(len(symbols), 500), batch_size):  # Limit to 500 symbols for performance
 		batch_symbols = symbols[i:i + batch_size]
-		
+
 		try:
 			analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
 		except Exception:
 			continue
-			
+
 		for symbol, data in analysis.items():
 			try:
 				if not data or not hasattr(data, 'indicators'):
 					continue
-					
+
 				indicators = data.indicators
-				
+
 				# Get required data
 				volume = indicators.get('volume', 0)
 				close = indicators.get('close', 0)
 				open_price = indicators.get('open', 0)
 				sma20_volume = indicators.get('volume.SMA20', 0)  # 20-period volume average
-				
+
 				if not all([volume, close, open_price]) or volume <= 0:
 					continue
-				
+
 				# Calculate price change %
 				price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
-				
+
 				# Volume ratio calculation
 				# If SMA20 volume not available, use a simple heuristic
 				if sma20_volume and sma20_volume > 0:
@@ -1073,19 +1245,19 @@ def volume_breakout_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", vo
 					# Estimate average volume as current volume / 2 (conservative)
 					avg_volume_estimate = volume / 2
 					volume_ratio = volume / avg_volume_estimate if avg_volume_estimate > 0 else 1
-				
+
 				# Check conditions
-				if (abs(price_change) >= price_change_min and 
+				if (abs(price_change) >= price_change_min and
 					volume_ratio >= volume_multiplier):
-					
+
 					# Get additional indicators
 					rsi = indicators.get('RSI', 50)
 					bb_upper = indicators.get('BB.upper', 0)
 					bb_lower = indicators.get('BB.lower', 0)
-					
+
 					# Volume strength score
 					volume_strength = min(10, volume_ratio)  # Cap at 10x
-					
+
 					volume_breakouts.append({
 						"symbol": symbol,
 						"changePercent": price_change,
@@ -1101,93 +1273,99 @@ def volume_breakout_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", vo
 							"volume": volume
 						}
 					})
-					
+
 			except Exception:
 				continue
-	
+
 	# Sort by volume strength first, then by price change
 	volume_breakouts.sort(key=lambda x: (x["volume_strength"], abs(x["changePercent"])), reverse=True)
-	
+
 	return volume_breakouts[:limit]
 
 
 @mcp.tool()
 def volume_confirmation_analysis(symbol: str, exchange: str = "KUCOIN", timeframe: str = "15m") -> dict:
 	"""Detailed volume confirmation analysis for a specific coin.
-	
+
+	Analyzes volume patterns in relation to price movements to identify
+	confirmed breakouts, divergences, and weak signals.
+
 	Args:
 		symbol: Coin symbol (e.g., BTCUSDT)
 		exchange: Exchange name
 		timeframe: Time frame for analysis
+
+	Returns:
+		Detailed volume analysis with signals and recommendations
 	"""
 	exchange = sanitize_exchange(exchange, "KUCOIN")
 	timeframe = sanitize_timeframe(timeframe, "15m")
-	
+
 	if not symbol.upper().endswith('USDT'):
 		symbol = symbol.upper() + 'USDT'
-	
+
 	screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-	
+
 	try:
 		analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=[symbol])
-		
+
 		if not analysis or symbol not in analysis:
 			return {"error": f"No data found for {symbol}"}
-			
+
 		data = analysis[symbol]
 		if not data or not hasattr(data, 'indicators'):
 			return {"error": f"No indicator data for {symbol}"}
-			
+
 		indicators = data.indicators
-		
+
 		# Get volume data
 		volume = indicators.get('volume', 0)
 		close = indicators.get('close', 0)
 		open_price = indicators.get('open', 0)
 		high = indicators.get('high', 0)
 		low = indicators.get('low', 0)
-		
+
 		# Calculate price metrics
 		price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
 		candle_range = ((high - low) / low) * 100 if low > 0 else 0
-		
+
 		# Volume analysis
 		sma20_volume = indicators.get('volume.SMA20', 0)
 		volume_ratio = volume / sma20_volume if sma20_volume > 0 else 1
-		
+
 		# Technical indicators
 		rsi = indicators.get('RSI', 50)
 		bb_upper = indicators.get('BB.upper', 0)
 		bb_lower = indicators.get('BB.lower', 0)
 		bb_middle = (bb_upper + bb_lower) / 2 if bb_upper and bb_lower else close
-		
+
 		# Volume confirmation signals
 		signals = []
-		
+
 		# Strong volume + price breakout
 		if volume_ratio >= 2.0 and abs(price_change) >= 3.0:
-			signals.append(f"🚀 STRONG BREAKOUT: {volume_ratio:.1f}x volume + {price_change:.1f}% price")
-		
+			signals.append(f"STRONG BREAKOUT: {volume_ratio:.1f}x volume + {price_change:.1f}% price")
+
 		# Volume divergence
 		if volume_ratio >= 1.5 and abs(price_change) < 1.0:
-			signals.append(f"⚠️ VOLUME DIVERGENCE: High volume ({volume_ratio:.1f}x) but low price movement")
-		
+			signals.append(f"VOLUME DIVERGENCE: High volume ({volume_ratio:.1f}x) but low price movement")
+
 		# Low volume on price move (weak signal)
 		if abs(price_change) >= 2.0 and volume_ratio < 0.8:
-			signals.append(f"❌ WEAK SIGNAL: Price moved but volume is low ({volume_ratio:.1f}x)")
-		
+			signals.append(f"WEAK SIGNAL: Price moved but volume is low ({volume_ratio:.1f}x)")
+
 		# Bollinger Band + Volume confirmation
 		if close > bb_upper and volume_ratio >= 1.5:
-			signals.append(f"💥 BB BREAKOUT CONFIRMED: Upper band breakout + volume confirmation")
+			signals.append(f"BB BREAKOUT CONFIRMED: Upper band breakout + volume confirmation")
 		elif close < bb_lower and volume_ratio >= 1.5:
-			signals.append(f"📉 BB SELL CONFIRMED: Lower band breakout + volume confirmation")
-		
+			signals.append(f"BB SELL CONFIRMED: Lower band breakout + volume confirmation")
+
 		# RSI + Volume analysis
 		if rsi > 70 and volume_ratio >= 2.0:
-			signals.append(f"🔥 OVERBOUGHT + VOLUME: RSI {rsi:.1f} + {volume_ratio:.1f}x volume")
+			signals.append(f"OVERBOUGHT + VOLUME: RSI {rsi:.1f} + {volume_ratio:.1f}x volume")
 		elif rsi < 30 and volume_ratio >= 2.0:
-			signals.append(f"🛒 OVERSOLD + VOLUME: RSI {rsi:.1f} + {volume_ratio:.1f}x volume")
-		
+			signals.append(f"OVERSOLD + VOLUME: RSI {rsi:.1f} + {volume_ratio:.1f}x volume")
+
 		# Overall assessment
 		if volume_ratio >= 3.0:
 			volume_strength = "VERY STRONG"
@@ -1199,7 +1377,7 @@ def volume_confirmation_analysis(symbol: str, exchange: str = "KUCOIN", timefram
 			volume_strength = "NORMAL"
 		else:
 			volume_strength = "WEAK"
-		
+
 		return {
 			"symbol": symbol,
 			"price_data": {
@@ -1221,12 +1399,12 @@ def volume_confirmation_analysis(symbol: str, exchange: str = "KUCOIN", timefram
 			},
 			"signals": signals,
 			"overall_assessment": {
-				"bullish_signals": len([s for s in signals if "🚀" in s or "💥" in s or "🛒" in s]),
-				"bearish_signals": len([s for s in signals if "📉" in s or "❌" in s]),
-				"warning_signals": len([s for s in signals if "⚠️" in s])
+				"bullish_signals": len([s for s in signals if "BREAKOUT" in s or "OVERSOLD" in s]),
+				"bearish_signals": len([s for s in signals if "SELL" in s or "WEAK" in s]),
+				"warning_signals": len([s for s in signals if "DIVERGENCE" in s])
 			}
 		}
-		
+
 	except Exception as e:
 		return {"error": f"Analysis failed: {str(e)}"}
 
@@ -1234,35 +1412,41 @@ def volume_confirmation_analysis(symbol: str, exchange: str = "KUCOIN", timefram
 @mcp.tool()
 def smart_volume_scanner(exchange: str = "KUCOIN", min_volume_ratio: float = 2.0, min_price_change: float = 2.0, rsi_range: str = "any", limit: int = 20) -> list[dict]:
 	"""Smart volume + technical analysis combination scanner.
-	
+
+	Combines volume breakout detection with RSI filtering to identify
+	high-probability trading setups.
+
 	Args:
 		exchange: Exchange name
 		min_volume_ratio: Minimum volume multiplier (default 2.0)
 		min_price_change: Minimum price change percentage (default 2.0)
 		rsi_range: "oversold" (<30), "overbought" (>70), "neutral" (30-70), "any"
 		limit: Number of results (max 30)
+
+	Returns:
+		List of coins matching volume and RSI criteria with trading recommendations
 	"""
 	exchange = sanitize_exchange(exchange, "KUCOIN")
 	min_volume_ratio = max(1.2, min(10.0, min_volume_ratio))
 	min_price_change = max(0.5, min(20.0, min_price_change))
 	limit = max(1, min(limit, 30))
-	
+
 	# Get volume breakouts first
 	volume_breakouts = volume_breakout_scanner(
-		exchange=exchange, 
+		exchange=exchange,
 		volume_multiplier=min_volume_ratio,
 		price_change_min=min_price_change,
 		limit=limit * 2  # Get more to filter
 	)
-	
+
 	if not volume_breakouts:
 		return []
-	
+
 	# Apply RSI filter
 	filtered_results = []
 	for coin in volume_breakouts:
 		rsi = coin["indicators"].get("RSI", 50)
-		
+
 		if rsi_range == "oversold" and rsi >= 30:
 			continue
 		elif rsi_range == "overbought" and rsi <= 70:
@@ -1270,26 +1454,64 @@ def smart_volume_scanner(exchange: str = "KUCOIN", min_volume_ratio: float = 2.0
 		elif rsi_range == "neutral" and (rsi <= 30 or rsi >= 70):
 			continue
 		# "any" passes all
-		
+
 		# Add trading recommendation
 		recommendation = ""
 		if coin["changePercent"] > 0 and coin["volume_ratio"] >= 2.0:
 			if rsi < 70:
-				recommendation = "🚀 STRONG BUY"
+				recommendation = "STRONG BUY"
 			else:
-				recommendation = "⚠️ OVERBOUGHT - CAUTION"
+				recommendation = "OVERBOUGHT - CAUTION"
 		elif coin["changePercent"] < 0 and coin["volume_ratio"] >= 2.0:
 			if rsi > 30:
-				recommendation = "📉 STRONG SELL"
+				recommendation = "STRONG SELL"
 			else:
-				recommendation = "🛒 OVERSOLD - OPPORTUNITY?"
-		
+				recommendation = "OVERSOLD - OPPORTUNITY?"
+
 		coin["trading_recommendation"] = recommendation
 		filtered_results.append(coin)
-	
+
 	return filtered_results[:limit]
 
 
+# =============================================================================
+# Entry Point
+# =============================================================================
+
+def main() -> None:
+    """
+    Main entry point for the TradingView MCP server.
+
+    Parses command line arguments and starts the server in either stdio mode
+    (for Claude Desktop) or HTTP mode (for remote access).
+
+    Command line options:
+        transport: "stdio" (default) or "streamable-http"
+        --host: Server host for HTTP mode (default: 127.0.0.1)
+        --port: Server port for HTTP mode (default: 8000)
+    """
+    parser = argparse.ArgumentParser(description="TradingView Screener MCP server")
+    parser.add_argument("transport", choices=["stdio", "streamable-http"], default="stdio", nargs="?", help="Transport (default stdio)")
+    parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    args = parser.parse_args()
+
+    # Debug logging if enabled
+    if os.environ.get("DEBUG_MCP"):
+        import sys
+        print(f"[DEBUG_MCP] pkg cwd={os.getcwd()} argv={sys.argv} file={__file__}", file=sys.stderr, flush=True)
+
+    if args.transport == "stdio":
+        mcp.run()
+    else:
+        try:
+            mcp.settings.host = args.host
+            mcp.settings.port = args.port
+        except Exception:
+            pass
+        mcp.run(transport="streamable-http")
+
+
 if __name__ == "__main__":
-	main()
+    main()
 

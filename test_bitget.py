@@ -1,6 +1,24 @@
 #!/usr/bin/env python3
 """
-Test script to verify Bitget exchange integration
+Bitget Exchange Integration Test Script.
+
+This script verifies that the Bitget exchange integration is properly configured
+and functional. It tests the full chain from exchange configuration through
+symbol loading.
+
+Usage:
+    uv run python test_bitget.py
+
+Tests Performed:
+    1. EXCHANGE_SCREENER mapping - Bitget should be registered as a crypto exchange
+    2. Exchange name sanitization - Case handling for exchange names
+    3. Symbol file loading - bitget.txt should contain valid symbols
+    4. Symbol format verification - All symbols should have BITGET: prefix
+    5. Common pair availability - BTC, ETH, BNB pairs should exist
+
+Exit Codes:
+    0: All tests passed
+    1: One or more tests failed
 """
 
 import sys
@@ -9,8 +27,17 @@ sys.path.insert(0, "src")
 from tradingview_mcp.core.services.coinlist import load_symbols
 from tradingview_mcp.core.utils.validators import sanitize_exchange, EXCHANGE_SCREENER
 
+
 def test_bitget_integration():
-    """Test Bitget exchange integration"""
+    """
+    Run comprehensive Bitget integration tests.
+
+    Verifies that Bitget is properly configured as an exchange, symbols
+    can be loaded, and the symbol format is correct for TradingView API calls.
+
+    Returns:
+        bool: True if all tests pass, False otherwise
+    """
     print("🧪 Testing Bitget Integration\n")
     print("=" * 60)
     

@@ -1,6 +1,6 @@
 # 📚 Usage Examples - TradingView MCP Server
 
-This guide shows real-world examples of how to use the TradingView MCP Server with Claude Desktop.
+This guide shows real-world examples of how to use the TradingView MCP Server with any MCP-compatible AI platform (Claude.ai, ChatGPT, Claude Desktop, etc.).
 
 ## 🚀 Quick Start Examples
 
@@ -378,7 +378,3 @@ Want to understand the technical indicators better?
 - **Volume:** Confirms the strength of price movements
 
 **Remember:** This tool provides data and analysis, but always do your own research and risk management!
-
----
-
-**Happy Trading! May your analysis be sharp and your profits be green! 📈✨**

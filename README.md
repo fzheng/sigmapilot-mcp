@@ -38,7 +38,10 @@ A remote Model Context Protocol (MCP) server that provides real-time cryptocurre
 
 ### Option 1: Remote Deployment (Recommended)
 
-Deploy as a secure remote MCP server with Auth0 authentication.
+Deploy as a secure remote MCP server with Auth0 authentication. Once deployed, connect from **any MCP-compatible AI platform**:
+- **Claude.ai** - Via [Connectors](https://claude.ai/settings/connectors) ([documentation](https://support.claude.com/en/articles/11724452-using-the-connectors-directory-to-extend-claude-s-capabilities))
+- **ChatGPT** - Via MCP plugin support
+- **Other AI platforms** - Any service supporting MCP protocol
 
 #### Prerequisites
 - [Railway account](https://railway.app/) (free tier available)
@@ -63,7 +66,14 @@ Deploy as a secure remote MCP server with Auth0 authentication.
      RESOURCE_SERVER_URL=https://your-app.up.railway.app/mcp
      ```
 
-4. **Connect Claude Desktop**
+4. **Connect to AI Platform**
+
+   **Claude.ai (Web):**
+   - Go to [claude.ai/settings/connectors](https://claude.ai/settings/connectors)
+   - Add your MCP server URL: `https://your-app.up.railway.app/mcp`
+   - Authenticate with Auth0 when prompted
+
+   **Claude Desktop:**
    ```json
    {
      "mcpServers": {
@@ -79,7 +89,7 @@ See [Remote Deployment Guide](docs/REMOTE_DEPLOYMENT.md) for detailed instructio
 
 ### Option 2: Local Installation
 
-For local development or direct Claude Desktop connection.
+For local development or direct Claude Desktop connection (stdio mode).
 
 1. **Install UV Package Manager:**
    ```bash
@@ -183,10 +193,10 @@ uv run python main.py
 
 ```
 ┌─────────────────┐      HTTPS       ┌─────────────────┐
-│  Claude Desktop │ ───────────────► │  Railway Server │
-│  / AI Client    │  + OAuth Token   │  (main.py)      │
-└─────────────────┘                  └────────┬────────┘
-                                              │
+│   Claude.ai     │ ───────────────► │  Railway Server │
+│   ChatGPT       │  + OAuth Token   │  (main.py)      │
+│   AI Platforms  │                  └────────┬────────┘
+└─────────────────┘                           │
                                               ▼
                                      ┌─────────────────┐
                                      │    Auth0        │

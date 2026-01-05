@@ -2,6 +2,12 @@
 
 This guide covers deploying TradingView MCP Server to Railway with Auth0 authentication.
 
+Once deployed, your MCP server can be connected from **any MCP-compatible AI platform**:
+- **Claude.ai** - Via [Connectors](https://claude.ai/settings/connectors) ([documentation](https://support.claude.com/en/articles/11724452-using-the-connectors-directory-to-extend-claude-s-capabilities))
+- **ChatGPT** - Via MCP plugin support
+- **Claude Desktop** - Via config file
+- **Other AI platforms** - Any service supporting MCP protocol
+
 ## Prerequisites
 
 - [Railway account](https://railway.app/) (free tier available)
@@ -75,11 +81,21 @@ Your server should be running at:
 https://your-app.up.railway.app/mcp
 ```
 
-## Step 3: Claude Desktop Configuration
+## Step 3: Connect to AI Platform
 
-### 3.1 Get OAuth Token
+### Option A: Claude.ai (Web) - Recommended
 
-For Claude Desktop to authenticate, you need to configure it with your Auth0 credentials.
+1. Go to [claude.ai/settings/connectors](https://claude.ai/settings/connectors)
+2. Click **Add MCP Server**
+3. Enter your server URL: `https://your-app.up.railway.app/mcp`
+4. When prompted, authenticate with Auth0
+5. Start using your MCP tools in Claude.ai conversations
+
+### Option B: ChatGPT
+
+ChatGPT supports MCP servers through its plugin system. Add your server URL when configuring MCP plugins.
+
+### Option C: Claude Desktop
 
 Add to your Claude Desktop config (`claude_desktop_config.json`):
 
@@ -88,29 +104,20 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
   "mcpServers": {
     "tradingview-remote": {
       "url": "https://your-app.up.railway.app/mcp",
-      "transport": "streamable-http",
-      "auth": {
-        "type": "oauth",
-        "domain": "your-tenant.auth0.com",
-        "clientId": "YOUR_CLIENT_ID",
-        "clientSecret": "YOUR_CLIENT_SECRET",
-        "audience": "https://tradingview-mcp.yourdomain.com"
-      }
+      "transport": "streamable-http"
     }
   }
 }
 ```
 
-> **Note**: Get `clientId` and `clientSecret` from your Auth0 Application settings.
-
 ## Architecture
 
 ```
 ┌─────────────────┐      HTTPS       ┌─────────────────┐
-│  Claude Desktop │ ───────────────► │  Railway Server │
-│                 │  + OAuth Token   │  (main.py)      │
-└─────────────────┘                  └────────┬────────┘
-                                              │
+│   Claude.ai     │ ───────────────► │  Railway Server │
+│   ChatGPT       │  + OAuth Token   │  (main.py)      │
+│   AI Platforms  │                  └────────┬────────┘
+└─────────────────┘                           │
                                               ▼
                                      ┌─────────────────┐
                                      │    Auth0        │

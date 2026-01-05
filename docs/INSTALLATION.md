@@ -1,4 +1,4 @@
-# Installation Guide - TradingView MCP Server v1.0.0
+# Installation Guide - TradingView MCP Server v1.1.0
 
 This guide covers both remote deployment (recommended) and local installation options.
 
@@ -80,7 +80,7 @@ uv --version
       "command": "uv",
       "args": [
         "tool", "run", "--from",
-        "git+https://github.com/anthropics/tradingview-mcp.git",
+        "git+https://github.com/fzheng/tradingview-mcp.git",
         "tradingview-mcp"
       ]
     }
@@ -114,7 +114,7 @@ For modifying the code or contributing:
 
 ```bash
 # Clone the repository
-git clone https://github.com/anthropics/tradingview-mcp.git
+git clone https://github.com/fzheng/tradingview-mcp.git
 cd tradingview-mcp
 
 # Install dependencies
@@ -227,6 +227,6 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 ## Getting Help
 
-- **GitHub Issues:** [Report bugs](https://github.com/anthropics/tradingview-mcp/issues)
+- **GitHub Issues:** [Report bugs](https://github.com/fzheng/tradingview-mcp/issues)
 - **Remote Deployment:** See [REMOTE_DEPLOYMENT.md](REMOTE_DEPLOYMENT.md)
 - **Usage Examples:** See [EXAMPLES.md](EXAMPLES.md)

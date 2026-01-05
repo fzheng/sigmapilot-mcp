@@ -1,6 +1,6 @@
 [project]
 name = "tradingview-mcp"
-version = "1.0.0"
+version = "1.1.0"
 description = "Model Context Protocol server exposing crypto screener tools (TradingView Screener)"
 readme = "README.md"
 requires-python = ">=3.11"

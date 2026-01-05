@@ -73,7 +73,7 @@ Perfect for traders using AI assistants! 📈
 
 #AI #Trading #Claude #Crypto #OpenSource #MCP #TradingView #BIST
 
-GitHub: https://github.com/atilaahmettaner/tradingview-mcp
+GitHub: https://github.com/fzheng/tradingview-mcp
 ```
 
 #### Reddit Communities
@@ -107,9 +107,9 @@ Outline:
 
 #### Repository Badges
 ```markdown
-![GitHub stars](https://img.shields.io/github/stars/atilaahmettaner/tradingview-mcp)
-![GitHub forks](https://img.shields.io/github/forks/atilaahmettaner/tradingview-mcp)
-![GitHub issues](https://img.shields.io/github/issues/atilaahmettaner/tradingview-mcp)
+![GitHub stars](https://img.shields.io/github/stars/fzheng/tradingview-mcp)
+![GitHub forks](https://img.shields.io/github/forks/fzheng/tradingview-mcp)
+![GitHub issues](https://img.shields.io/github/issues/fzheng/tradingview-mcp)
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ```

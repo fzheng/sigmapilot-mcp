@@ -1,4 +1,4 @@
-# TradingView MCP Server v1.0.0 - Development TODO
+# TradingView MCP Server v1.1.0 - Development TODO
 
 This document tracks development tasks, improvements, and known issues.
 

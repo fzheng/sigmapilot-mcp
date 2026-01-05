@@ -460,7 +460,7 @@ async def health_check(request: Request) -> JSONResponse:
     return JSONResponse({
         "status": "healthy",
         "service": "tradingview-mcp",
-        "version": "1.0.0",
+        "version": "1.1.0",
     })
 
 
@@ -470,7 +470,7 @@ async def root_health(request: Request) -> JSONResponse:
     return JSONResponse({
         "status": "healthy",
         "service": "tradingview-mcp",
-        "version": "1.0.0",
+        "version": "1.1.0",
     })
 
 

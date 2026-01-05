@@ -106,7 +106,7 @@ For local development or direct Claude Desktop connection.
          "command": "uv",
          "args": [
            "tool", "run", "--from",
-           "git+https://github.com/anthropics/tradingview-mcp.git",
+           "git+https://github.com/fzheng/tradingview-mcp.git",
            "tradingview-mcp"
          ]
        }
@@ -165,7 +165,7 @@ For local development or direct Claude Desktop connection.
 
 ```bash
 # Clone and install
-git clone https://github.com/anthropics/tradingview-mcp.git
+git clone https://github.com/fzheng/tradingview-mcp.git
 cd tradingview-mcp
 uv sync
 
@@ -214,4 +214,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Support
 
-- [GitHub Issues](https://github.com/anthropics/tradingview-mcp/issues)
+- [GitHub Issues](https://github.com/fzheng/tradingview-mcp/issues)

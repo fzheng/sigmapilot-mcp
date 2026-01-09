@@ -1,5 +1,5 @@
 """
-Validators and constants for the TradingView MCP server.
+Validators and constants for the SigmaPilot MCP server.
 
 This module provides:
 - Input validation functions for exchanges and timeframes
@@ -112,12 +112,12 @@ EXCHANGE_SCREENER: Dict[str, str] = {
 }
 
 # Get absolute path to coinlist directory relative to this module
-# This file is at: src/tradingview_mcp/core/utils/validators.py
-# We want: src/tradingview_mcp/coinlist/
+# This file is at: src/sigmapilot_mcp/core/utils/validators.py
+# We want: src/sigmapilot_mcp/coinlist/
 _this_file = __file__
 _utils_dir = os.path.dirname(_this_file)  # core/utils
-_core_dir = os.path.dirname(_utils_dir)   # core  
-_package_dir = os.path.dirname(_core_dir) # tradingview_mcp
+_core_dir = os.path.dirname(_utils_dir)   # core
+_package_dir = os.path.dirname(_core_dir) # sigmapilot_mcp
 COINLIST_DIR = os.path.join(_package_dir, 'coinlist')
 
 

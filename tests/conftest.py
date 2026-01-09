@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures for TradingView MCP tests.
+Pytest configuration and shared fixtures for SigmaPilot MCP tests.
 
 This module provides common fixtures and configuration used across all test modules.
 """

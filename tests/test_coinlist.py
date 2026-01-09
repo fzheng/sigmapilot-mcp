@@ -11,8 +11,8 @@ import pytest
 import os
 import tempfile
 from unittest.mock import patch
-from tradingview_mcp.core.services.coinlist import load_symbols
-from tradingview_mcp.core.utils.validators import COINLIST_DIR
+from sigmapilot_mcp.core.services.coinlist import load_symbols
+from sigmapilot_mcp.core.utils.validators import COINLIST_DIR
 
 
 # =============================================================================
@@ -90,7 +90,7 @@ class TestLoadSymbolsWithMockFiles:
                 f.write("BTCUSDT\nETHUSDT\nSOLUSDT\n")
 
             # Patch COINLIST_DIR to use temp directory
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 result = load_symbols("test_exchange")
 
             assert result == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
@@ -102,7 +102,7 @@ class TestLoadSymbolsWithMockFiles:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("BTCUSDT\n\nETHUSDT\n\n\nSOLUSDT\n")
 
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 result = load_symbols("test_exchange")
 
             assert result == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
@@ -114,7 +114,7 @@ class TestLoadSymbolsWithMockFiles:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("BTCUSDT\n   \nETHUSDT\n\t\nSOLUSDT\n")
 
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 result = load_symbols("test_exchange")
 
             assert result == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
@@ -126,7 +126,7 @@ class TestLoadSymbolsWithMockFiles:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("  BTCUSDT  \n ETHUSDT\nSOLUSDT   \n")
 
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 result = load_symbols("test_exchange")
 
             assert result == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
@@ -138,7 +138,7 @@ class TestLoadSymbolsWithMockFiles:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("")
 
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 result = load_symbols("empty_exchange")
 
             assert result == []
@@ -150,7 +150,7 @@ class TestLoadSymbolsWithMockFiles:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("KUCOIN:BTCUSDT\nKUCOIN:ETHUSDT\n")
 
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 result = load_symbols("test_exchange")
 
             assert result == ["KUCOIN:BTCUSDT", "KUCOIN:ETHUSDT"]
@@ -177,7 +177,7 @@ class TestLoadSymbolsErrorHandling:
             with open(filepath, "wb") as f:
                 f.write(b"\xff\xfe\x00\x00")  # Invalid UTF-8
 
-            with patch('tradingview_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
+            with patch('sigmapilot_mcp.core.services.coinlist.COINLIST_DIR', tmpdir):
                 # Should handle gracefully and return empty list or partial data
                 result = load_symbols("bad_encoding")
                 assert isinstance(result, list)

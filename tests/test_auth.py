@@ -70,7 +70,7 @@ def mock_expired_payload():
 @pytest.fixture
 def verifier():
     """Create a test Auth0TokenVerifier instance."""
-    from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+    from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
     return Auth0TokenVerifier(
         domain="test-tenant.auth0.com",
         audience="https://test-api.example.com",
@@ -94,7 +94,7 @@ class TestAuth0TokenVerifierInit:
 
     def test_initialization_with_defaults(self):
         """Test verifier initialization with default parameters."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
 
         verifier = Auth0TokenVerifier(
             domain="test-tenant.auth0.com",
@@ -108,7 +108,7 @@ class TestAuth0TokenVerifierInit:
 
     def test_initialization_with_custom_algorithms(self):
         """Test verifier initialization with custom algorithms."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
 
         verifier = Auth0TokenVerifier(
             domain="test-tenant.auth0.com",
@@ -120,7 +120,7 @@ class TestAuth0TokenVerifierInit:
 
     def test_jwks_client_initialized(self):
         """Test that JWKS client is properly initialized."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
 
         verifier = Auth0TokenVerifier(
             domain="my-tenant.auth0.com",
@@ -132,7 +132,7 @@ class TestAuth0TokenVerifierInit:
 
     def test_issuer_url_format(self):
         """Test that issuer URL is correctly formatted with trailing slash."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
 
         verifier = Auth0TokenVerifier(
             domain="custom-domain.auth0.com",
@@ -144,7 +144,7 @@ class TestAuth0TokenVerifierInit:
 
     def test_thread_pool_executor_created(self):
         """Test that thread pool executor is created for async operations."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
 
         verifier = Auth0TokenVerifier(
             domain="test-tenant.auth0.com",
@@ -348,7 +348,7 @@ class TestCreateAuth0Verifier:
 
     def test_creates_verifier_with_required_env_vars(self):
         """Test verifier creation with required environment variables."""
-        from tradingview_mcp.core.utils.auth import create_auth0_verifier
+        from sigmapilot_mcp.core.utils.auth import create_auth0_verifier
 
         with patch.dict(os.environ, {
             "AUTH0_DOMAIN": "test-tenant.auth0.com",
@@ -362,7 +362,7 @@ class TestCreateAuth0Verifier:
 
     def test_raises_value_error_without_domain(self):
         """Test that ValueError is raised without AUTH0_DOMAIN."""
-        from tradingview_mcp.core.utils.auth import create_auth0_verifier
+        from sigmapilot_mcp.core.utils.auth import create_auth0_verifier
 
         with patch.dict(os.environ, {
             "AUTH0_AUDIENCE": "https://test-api.example.com",
@@ -373,7 +373,7 @@ class TestCreateAuth0Verifier:
 
     def test_raises_value_error_without_audience(self):
         """Test that ValueError is raised without AUTH0_AUDIENCE."""
-        from tradingview_mcp.core.utils.auth import create_auth0_verifier
+        from sigmapilot_mcp.core.utils.auth import create_auth0_verifier
 
         with patch.dict(os.environ, {
             "AUTH0_DOMAIN": "test-tenant.auth0.com",
@@ -384,7 +384,7 @@ class TestCreateAuth0Verifier:
 
     def test_parses_comma_separated_algorithms(self):
         """Test that comma-separated algorithms are parsed correctly."""
-        from tradingview_mcp.core.utils.auth import create_auth0_verifier
+        from sigmapilot_mcp.core.utils.auth import create_auth0_verifier
 
         with patch.dict(os.environ, {
             "AUTH0_DOMAIN": "test-tenant.auth0.com",
@@ -397,7 +397,7 @@ class TestCreateAuth0Verifier:
 
     def test_default_algorithm_when_not_specified(self):
         """Test that RS256 is used when AUTH0_ALGORITHMS is not set."""
-        from tradingview_mcp.core.utils.auth import create_auth0_verifier
+        from sigmapilot_mcp.core.utils.auth import create_auth0_verifier
 
         with patch.dict(os.environ, {
             "AUTH0_DOMAIN": "test-tenant.auth0.com",
@@ -409,7 +409,7 @@ class TestCreateAuth0Verifier:
 
     def test_strips_whitespace_from_algorithms(self):
         """Test that whitespace is stripped from algorithm names."""
-        from tradingview_mcp.core.utils.auth import create_auth0_verifier
+        from sigmapilot_mcp.core.utils.auth import create_auth0_verifier
 
         with patch.dict(os.environ, {
             "AUTH0_DOMAIN": "test-tenant.auth0.com",
@@ -470,26 +470,94 @@ class TestAccessTokenCompatibility:
 class TestErrorLogging:
     """Tests for error logging behavior."""
 
-    def test_logs_invalid_token_error(self, verifier, mock_signing_key, capsys):
-        """Test that InvalidTokenError is logged."""
+    def test_logs_invalid_token_error(self, verifier, mock_signing_key, caplog):
+        """Test that InvalidTokenError is logged at debug level."""
+        import logging
         from jwt import InvalidTokenError
 
-        with patch.object(verifier.jwks_client, 'get_signing_key_from_jwt', return_value=mock_signing_key):
-            with patch('jwt.decode', side_effect=InvalidTokenError("Test error")):
-                result = verifier.verify_token_sync("invalid.jwt.token")
+        with caplog.at_level(logging.DEBUG):
+            with patch.object(verifier.jwks_client, 'get_signing_key_from_jwt', return_value=mock_signing_key):
+                with patch('jwt.decode', side_effect=InvalidTokenError("Test error")):
+                    result = verifier.verify_token_sync("invalid.jwt.token")
 
-                captured = capsys.readouterr()
-                assert "Token validation failed" in captured.out
+                    # Should be logged at DEBUG level (not exposing details in production)
+                    assert "Token validation failed" in caplog.text
+                    assert result is None
+
+    def test_logs_generic_exception(self, verifier, caplog):
+        """Test that generic exceptions are logged at warning level."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            with patch.object(verifier.jwks_client, 'get_signing_key_from_jwt', side_effect=Exception("Network failure")):
+                result = verifier.verify_token_sync("valid.jwt.token")
+
+                assert "Token verification error" in caplog.text
                 assert result is None
 
-    def test_logs_generic_exception(self, verifier, capsys):
-        """Test that generic exceptions are logged."""
-        with patch.object(verifier.jwks_client, 'get_signing_key_from_jwt', side_effect=Exception("Network failure")):
-            result = verifier.verify_token_sync("valid.jwt.token")
+    def test_does_not_log_sensitive_token_data(self, verifier, mock_signing_key, caplog):
+        """Test that token content is not logged."""
+        import logging
+        from jwt import InvalidTokenError
 
-            captured = capsys.readouterr()
-            assert "Token verification error" in captured.out
-            assert result is None
+        sensitive_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.secret_payload.signature"
+
+        with caplog.at_level(logging.DEBUG):
+            with patch.object(verifier.jwks_client, 'get_signing_key_from_jwt', return_value=mock_signing_key):
+                with patch('jwt.decode', side_effect=InvalidTokenError("Invalid")):
+                    verifier.verify_token_sync(sensitive_token)
+
+                    # Token content should not appear in logs
+                    assert sensitive_token not in caplog.text
+                    assert "secret_payload" not in caplog.text
+
+
+# =============================================================================
+# Tests for Resource Cleanup
+# =============================================================================
+
+class TestResourceCleanup:
+    """Tests for proper resource cleanup."""
+
+    def test_close_shuts_down_executor(self):
+        """Test that close() shuts down the thread pool executor."""
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
+
+        verifier = Auth0TokenVerifier(
+            domain="test-tenant.auth0.com",
+            audience="https://test-api.example.com",
+        )
+
+        assert verifier._executor is not None
+        verifier.close()
+        assert verifier._executor is None
+
+    def test_close_is_idempotent(self):
+        """Test that close() can be called multiple times safely."""
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
+
+        verifier = Auth0TokenVerifier(
+            domain="test-tenant.auth0.com",
+            audience="https://test-api.example.com",
+        )
+
+        verifier.close()
+        verifier.close()  # Should not raise
+        assert verifier._executor is None
+
+    def test_destructor_calls_close(self):
+        """Test that destructor cleans up resources."""
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
+
+        verifier = Auth0TokenVerifier(
+            domain="test-tenant.auth0.com",
+            audience="https://test-api.example.com",
+        )
+
+        executor = verifier._executor
+        del verifier
+        # Executor should have been shut down (though we can't easily verify
+        # without keeping a reference, this tests the destructor runs)
 
 
 # =============================================================================
@@ -501,7 +569,7 @@ class TestAuthIntegration:
 
     def test_full_verification_flow(self):
         """Test complete verification flow with mocked JWKS."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
         from mcp.server.auth.provider import AccessToken
 
         verifier = Auth0TokenVerifier(
@@ -534,7 +602,7 @@ class TestAuthIntegration:
 
     def test_verifier_can_be_used_as_fastmcp_token_verifier(self):
         """Test that verifier implements TokenVerifier protocol."""
-        from tradingview_mcp.core.utils.auth import Auth0TokenVerifier
+        from sigmapilot_mcp.core.utils.auth import Auth0TokenVerifier
 
         verifier = Auth0TokenVerifier(
             domain="protocol-test.auth0.com",

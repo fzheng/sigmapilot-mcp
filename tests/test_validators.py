@@ -9,7 +9,7 @@ Tests cover:
 
 import pytest
 import os
-from tradingview_mcp.core.utils.validators import (
+from sigmapilot_mcp.core.utils.validators import (
     sanitize_timeframe,
     sanitize_exchange,
     ALLOWED_TIMEFRAMES,
@@ -117,9 +117,9 @@ class TestCoinlistDir:
         """Test that path ends with 'coinlist' directory."""
         assert COINLIST_DIR.endswith("coinlist")
 
-    def test_path_contains_tradingview_mcp(self):
-        """Test that path is within tradingview_mcp package."""
-        assert "tradingview_mcp" in COINLIST_DIR
+    def test_path_contains_sigmapilot_mcp(self):
+        """Test that path is within sigmapilot_mcp package."""
+        assert "sigmapilot_mcp" in COINLIST_DIR
 
 
 # =============================================================================

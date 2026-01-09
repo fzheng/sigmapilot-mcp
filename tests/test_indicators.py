@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import pytest
-from tradingview_mcp.core.services.indicators import (
+from sigmapilot_mcp.core.services.indicators import (
     compute_change,
     compute_bbw,
     compute_bb_rating_signal,
@@ -297,6 +297,60 @@ class TestComputeMetrics:
         result = compute_metrics(indicators)
         # Should return None due to TypeError in calculation
         assert result is None
+
+    def test_none_open_returns_zero_change(self):
+        """Test handling of None open price - returns 0% change."""
+        indicators = {
+            "open": None,
+            "close": 105.0,
+            "SMA20": 102.0,
+            "BB.upper": 110.0,
+            "BB.lower": 94.0,
+        }
+        result = compute_metrics(indicators)
+        # compute_change returns 0.0 when open is falsy, so metrics still compute
+        assert result is not None
+        assert result["change"] == 0.0  # No change calculated due to None open
+
+    def test_none_close_returns_none(self):
+        """Test handling of None close price - returns None."""
+        indicators = {
+            "open": 100.0,
+            "close": None,
+            "SMA20": 102.0,
+            "BB.upper": 110.0,
+            "BB.lower": 94.0,
+        }
+        result = compute_metrics(indicators)
+        # TypeError when trying to do math with None close
+        assert result is None
+
+    def test_very_small_open_price(self):
+        """Test handling of very small open price (potential inf/nan)."""
+        indicators = {
+            "open": 0.0000001,  # Very small but non-zero
+            "close": 105.0,
+            "SMA20": 102.0,
+            "BB.upper": 110.0,
+            "BB.lower": 94.0,
+        }
+        result = compute_metrics(indicators)
+        # Should handle gracefully (large % change but valid)
+        assert result is not None
+        assert result["change"] > 0  # Should be a huge positive change
+
+    def test_negative_prices(self):
+        """Test handling of negative prices (shouldn't happen but test anyway)."""
+        indicators = {
+            "open": -100.0,
+            "close": -90.0,
+            "SMA20": -95.0,
+            "BB.upper": -80.0,
+            "BB.lower": -110.0,
+        }
+        result = compute_metrics(indicators)
+        # Should still calculate (mathematical correctness)
+        assert result is not None
 
     def test_price_rounding(self):
         """Test that price is properly rounded to 4 decimal places."""

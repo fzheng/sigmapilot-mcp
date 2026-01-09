@@ -1,7 +1,7 @@
 [project]
-name = "tradingview-mcp"
-version = "1.1.0"
-description = "Model Context Protocol server exposing crypto screener tools (TradingView Screener)"
+name = "sigmapilot-mcp"
+version = "1.2.0"
+description = "SigmaPilot MCP Server - AI-powered market intelligence with comprehensive technical analysis"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -12,17 +12,18 @@ dependencies = [
   "mcp-oauth>=0.0.5",
   "httpx>=0.27.0",
   "PyJWT[crypto]>=2.8.0",
+  "starlette>=0.27.0",
 ]
 
 [project.scripts]
 # Entry point now points to packaged module
-tradingview-mcp = "tradingview_mcp.server:main"
+sigmapilot-mcp = "sigmapilot_mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-tradingview_mcp = ["coinlist/*.txt"]
+sigmapilot_mcp = ["coinlist/*.txt"]
 
 [tool.uv]
 package = true

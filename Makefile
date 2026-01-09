@@ -1,4 +1,4 @@
-# TradingView MCP Server - Makefile
+# SigmaPilot MCP Server - Makefile
 # Common development commands
 
 .PHONY: test test-verbose test-cov lint format typecheck clean install dev help
@@ -25,29 +25,29 @@ install:
 dev:
 	uv sync --dev
 
-# Run all tests
+# Run all tests (using python -m for Windows compatibility)
 test:
-	uv run pytest tests/ -v
+	uv run python -m pytest tests/ -v
 
 # Run tests with verbose output
 test-verbose:
-	uv run pytest tests/ -v --tb=long
+	uv run python -m pytest tests/ -v --tb=long
 
 # Run tests with coverage
 test-cov:
-	uv run pytest tests/ -v --cov=src/tradingview_mcp --cov-report=term-missing
+	uv run python -m pytest tests/ -v --cov=src/sigmapilot_mcp --cov-report=term-missing
 
 # Run linter
 lint:
-	uv run ruff check src/ tests/
+	uv run python -m ruff check src/ tests/
 
 # Format code
 format:
-	uv run ruff format src/ tests/
+	uv run python -m ruff format src/ tests/
 
 # Run type checker
 typecheck:
-	uv run mypy src/
+	uv run python -m mypy src/
 
 # Clean build artifacts
 clean:
@@ -63,6 +63,10 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-# Run the MCP server
+# Run the MCP server (stdio mode)
 run:
-	uv run python src/tradingview_mcp/server.py
+	uv run python src/sigmapilot_mcp/server.py
+
+# Run the MCP server (HTTP mode)
+run-http:
+	uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000

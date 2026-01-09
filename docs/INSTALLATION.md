@@ -1,4 +1,4 @@
-# Installation Guide - TradingView MCP Server v1.1.0
+# Installation Guide - SigmaPilot MCP Server v1.2.0
 
 This guide covers both remote deployment (recommended) and local installation options.
 
@@ -6,7 +6,7 @@ This guide covers both remote deployment (recommended) and local installation op
 
 - **Python 3.11+** (required for mcp-oauth)
 - **UV Package Manager** (for dependency management)
-- **Internet Connection** (for TradingView data access)
+- **Internet Connection** (for market data access)
 
 For remote deployment, you'll also need:
 - **Railway account** (free tier available)
@@ -67,7 +67,7 @@ uv --version
 ```json
 {
   "mcpServers": {
-    "tradingview": {
+    "sigmapilot": {
       "url": "https://your-app.up.railway.app/mcp",
       "transport": "streamable-http"
     }
@@ -79,12 +79,12 @@ uv --version
 ```json
 {
   "mcpServers": {
-    "tradingview-mcp": {
+    "sigmapilot-mcp": {
       "command": "uv",
       "args": [
         "tool", "run", "--from",
-        "git+https://github.com/fzheng/tradingview-mcp.git",
-        "tradingview-mcp"
+        "git+https://github.com/fzheng/sigmapilot-mcp.git",
+        "sigmapilot-mcp"
       ]
     }
   }
@@ -101,7 +101,7 @@ uv --version
 
 Ask Claude:
 ```
-"Can you show me the available TradingView tools?"
+"Can you show me the available SigmaPilot tools?"
 ```
 
 You should see tools like:
@@ -117,8 +117,8 @@ For modifying the code or contributing:
 
 ```bash
 # Clone the repository
-git clone https://github.com/fzheng/tradingview-mcp.git
-cd tradingview-mcp
+git clone https://github.com/fzheng/sigmapilot-mcp.git
+cd sigmapilot-mcp
 
 # Install dependencies
 uv sync
@@ -127,7 +127,7 @@ uv sync
 make test
 
 # Run locally (stdio mode for Claude Desktop)
-uv run python src/tradingview_mcp/server.py
+uv run python src/sigmapilot_mcp/server.py
 
 # Run as remote server (HTTP mode)
 uv run python main.py
@@ -138,10 +138,10 @@ uv run python main.py
 ```json
 {
   "mcpServers": {
-    "tradingview-mcp-local": {
-      "command": "C:\\Users\\YOUR_USERNAME\\tradingview-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["C:\\Users\\YOUR_USERNAME\\tradingview-mcp\\src\\tradingview_mcp\\server.py"],
-      "cwd": "C:\\Users\\YOUR_USERNAME\\tradingview-mcp"
+    "sigmapilot-mcp-local": {
+      "command": "C:\\Users\\YOUR_USERNAME\\sigmapilot-mcp\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\Users\\YOUR_USERNAME\\sigmapilot-mcp\\src\\sigmapilot_mcp\\server.py"],
+      "cwd": "C:\\Users\\YOUR_USERNAME\\sigmapilot-mcp"
     }
   }
 }
@@ -152,10 +152,10 @@ uv run python main.py
 ```json
 {
   "mcpServers": {
-    "tradingview-mcp-local": {
+    "sigmapilot-mcp-local": {
       "command": "uv",
-      "args": ["run", "python", "src/tradingview_mcp/server.py"],
-      "cwd": "/path/to/tradingview-mcp"
+      "args": ["run", "python", "src/sigmapilot_mcp/server.py"],
+      "cwd": "/path/to/sigmapilot-mcp"
     }
   }
 }
@@ -230,6 +230,6 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 ## Getting Help
 
-- **GitHub Issues:** [Report bugs](https://github.com/fzheng/tradingview-mcp/issues)
+- **GitHub Issues:** [Report bugs](https://github.com/fzheng/sigmapilot-mcp/issues)
 - **Remote Deployment:** See [REMOTE_DEPLOYMENT.md](REMOTE_DEPLOYMENT.md)
 - **Usage Examples:** See [EXAMPLES.md](EXAMPLES.md)

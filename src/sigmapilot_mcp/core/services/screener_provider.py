@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import List, Dict, Any, Optional
 
 # Import centralized timeframe conversion function
-from tradingview_mcp.core.utils.validators import tf_to_tv_resolution
+from sigmapilot_mcp.core.utils.validators import tf_to_tv_resolution
 
 # Create module-level alias for backward compatibility
 _tf_to_tv_resolution = tf_to_tv_resolution

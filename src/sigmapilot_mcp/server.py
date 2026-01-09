@@ -2171,7 +2171,7 @@ def main() -> None:
 
     Command line options:
         transport: "stdio" (default) or "streamable-http"
-        --host: Server host for HTTP mode (default: 127.0.0.1)
+        --host: Server host for HTTP mode (default: 0.0.0.0)
         --port: Server port for HTTP mode (default: 8000)
         --auth: Enable Auth0 authentication (HTTP mode only)
 

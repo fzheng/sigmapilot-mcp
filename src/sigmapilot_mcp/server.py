@@ -190,6 +190,45 @@ def _percent_change(o: Optional[float], c: Optional[float]) -> Optional[float]:
 _tf_to_tv_resolution = tf_to_tv_resolution
 
 
+def _classify_api_error(error: Exception) -> str:
+    """
+    Classify TradingView API errors into user-friendly messages.
+
+    Args:
+        error: The exception raised during API call
+
+    Returns:
+        A descriptive error message based on the error type
+    """
+    error_str = str(error).lower()
+    error_type = type(error).__name__
+
+    # JSON decode errors - empty or invalid response
+    if "expecting value" in error_str or "jsondecodeerror" in error_type.lower():
+        return "TradingView API returned empty response. This may indicate rate limiting or temporary unavailability. Please wait a moment and try again."
+
+    # Connection errors
+    if any(term in error_str for term in ["connection", "timeout", "timed out", "refused"]):
+        return f"Network error connecting to TradingView API: {error}. Please check your internet connection."
+
+    # HTTP errors
+    if "429" in error_str or "too many requests" in error_str:
+        return "TradingView API rate limit exceeded. Please wait 30-60 seconds before retrying."
+
+    if "403" in error_str or "forbidden" in error_str:
+        return "TradingView API access denied. The API may be temporarily blocking requests."
+
+    if "500" in error_str or "502" in error_str or "503" in error_str or "504" in error_str:
+        return f"TradingView API server error ({error_str[:50]}...). Please try again later."
+
+    # Symbol-related errors
+    if "symbol" in error_str and ("not found" in error_str or "invalid" in error_str):
+        return f"Invalid symbol or exchange: {error}"
+
+    # Generic fallback with original error
+    return f"TradingView API error: {error}"
+
+
 def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int = 50, bbw_filter: float = None) -> List[Row]:
     """
     Fetch Bollinger Band analysis data for symbols on an exchange.
@@ -227,7 +266,7 @@ def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int =
     try:
         analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=symbols)
     except Exception as e:
-        raise RuntimeError(f"Analysis failed: {str(e)}")
+        raise RuntimeError(_classify_api_error(e))
     
     rows: List[Row] = []
     
@@ -313,14 +352,21 @@ def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: 
     screener = EXCHANGE_SCREENER.get(exchange, "crypto")
     
     # Process symbols in batches
+    failed_batches = 0
+    total_batches = (len(symbols) + batch_size - 1) // batch_size
+    last_error = None
+
     for i in range(0, len(symbols), batch_size):
         batch_symbols = symbols[i:i + batch_size]
-        
+
         try:
             analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
         except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Batch {i // batch_size + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue  # If this batch fails, move to the next one
-            
+
         # Process coins in this batch
         for key, value in analysis.items():
             try:
@@ -358,10 +404,14 @@ def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: 
                 
             except (TypeError, ZeroDivisionError, KeyError):
                 continue
-    
+
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort all coins by change percentage
     all_coins.sort(key=lambda x: x["changePercent"], reverse=True)
-    
+
     return all_coins[:limit]
 def _fetch_multi_changes(exchange: str, timeframes: List[str] | None, base_timeframe: str = "4h", limit: int | None = None, cookies: Any | None = None) -> List[MultiRow]:
     """
@@ -1102,7 +1152,7 @@ def candle_pattern_scanner(
             )
         except Exception as e:
             return {
-                "error": f"TradingView API error: {str(e)}",
+                "error": _classify_api_error(e),
                 "exchange": exchange,
                 "timeframe": timeframe
             }
@@ -1596,12 +1646,20 @@ def volume_scanner(
 
     # Process in batches
     batch_size = 100
-    for i in range(0, min(len(symbols), 500), batch_size):
+    max_symbols = min(len(symbols), 500)
+    total_batches = (max_symbols + batch_size - 1) // batch_size
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, max_symbols, batch_size):
         batch_symbols = symbols[i:i + batch_size]
 
         try:
             analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-        except Exception:
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Volume scanner batch {i // batch_size + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
 
         for symbol, data in analysis.items():
@@ -1677,6 +1735,10 @@ def volume_scanner(
 
             except Exception:
                 continue
+
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
 
     # Sort by volume strength, then price change
     volume_breakouts.sort(key=lambda x: (x["volume_strength"], abs(x["change_percent"])), reverse=True)
@@ -1862,12 +1924,20 @@ def pivot_points_scanner(
 
     # Process in batches
     batch_size = 100
-    for i in range(0, min(len(symbols), 500), batch_size):
+    max_symbols = min(len(symbols), 500)
+    total_batches = (max_symbols + batch_size - 1) // batch_size
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, max_symbols, batch_size):
         batch_symbols = symbols[i:i + batch_size]
 
         try:
             analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-        except Exception:
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Pivot scanner batch {i // batch_size + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
 
         for symbol, data in analysis.items():
@@ -1963,6 +2033,10 @@ def pivot_points_scanner(
             except Exception:
                 continue
 
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort by number of near levels (more levels = stronger signal)
     results.sort(key=lambda x: len(x["near_levels"]), reverse=True)
 
@@ -2026,12 +2100,20 @@ def tradingview_recommendation(
 
     # Process in batches
     batch_size = 100
-    for i in range(0, min(len(symbols), 500), batch_size):
+    max_symbols = min(len(symbols), 500)
+    total_batches = (max_symbols + batch_size - 1) // batch_size
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, max_symbols, batch_size):
         batch_symbols = symbols[i:i + batch_size]
 
         try:
             analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-        except Exception:
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"TV recommendation batch {i // batch_size + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
 
         for symbol, data in analysis.items():
@@ -2100,6 +2182,10 @@ def tradingview_recommendation(
 
             except Exception:
                 continue
+
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
 
     # Sort by signal strength (strongest first)
     results.sort(key=lambda x: x["signal_strength"], reverse=True)

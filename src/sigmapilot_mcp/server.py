@@ -482,12 +482,18 @@ RESOURCE_SERVER_URL = os.environ.get("RESOURCE_SERVER_URL", "http://localhost:80
 _token_verifier: Optional[Any] = None
 
 
-def create_mcp_server(enable_auth: bool = False) -> FastMCP:
+def create_mcp_server(
+    enable_auth: bool = False,
+    host: str = "0.0.0.0",
+    port: int = 8000
+) -> FastMCP:
     """
     Create and configure the MCP server with optional Auth0 authentication.
 
     Args:
         enable_auth: Enable Auth0 authentication (requires environment variables)
+        host: Server host for HTTP mode
+        port: Server port for HTTP mode
 
     Returns:
         Configured FastMCP server instance
@@ -513,10 +519,12 @@ def create_mcp_server(enable_auth: bool = False) -> FastMCP:
         except Exception as e:
             logger.warning(f"Auth0 setup failed: {e}. Running without auth.")
 
-    # Create the FastMCP server
+    # Create the FastMCP server with host/port for HTTP mode
     server = FastMCP(
         name="SigmaPilot Screener",
         instructions=SERVER_INSTRUCTIONS,
+        host=host,
+        port=port,
         token_verifier=token_verifier,
         auth=auth_settings,
     )
@@ -524,7 +532,7 @@ def create_mcp_server(enable_auth: bool = False) -> FastMCP:
     return server
 
 
-# Create the default MCP server instance (auth configured at runtime in main())
+# Create the default MCP server instance (for stdio mode, tools registered below)
 mcp = FastMCP(
     name="SigmaPilot Screener",
     instructions=SERVER_INSTRUCTIONS,
@@ -2094,8 +2102,12 @@ def tradingview_recommendation(
 # Health Check Endpoints (for HTTP mode)
 # =============================================================================
 
-if STARLETTE_AVAILABLE:
-    @mcp.custom_route("/health", methods=["GET"])
+def register_health_routes(server: FastMCP) -> None:
+    """Register health check routes on the given server instance."""
+    if not STARLETTE_AVAILABLE:
+        return
+
+    @server.custom_route("/health", methods=["GET"])
     async def health_check(request: Request) -> JSONResponse:
         """Health check endpoint for deployment platforms."""
         return JSONResponse({
@@ -2104,7 +2116,7 @@ if STARLETTE_AVAILABLE:
             "version": "1.2.0",
         })
 
-    @mcp.custom_route("/", methods=["GET"])
+    @server.custom_route("/", methods=["GET"])
     async def root_health(request: Request) -> JSONResponse:
         """Root endpoint returns health status."""
         return JSONResponse({
@@ -2113,6 +2125,28 @@ if STARLETTE_AVAILABLE:
             "version": "1.2.0",
             "docs": "Use /health for health checks, /mcp for MCP protocol"
         })
+
+
+def register_tools(server: FastMCP) -> None:
+    """Register all MCP tools on the given server instance.
+
+    This is used for HTTP mode where we create a fresh server with auth configuration.
+    The tools are defined above with @mcp.tool() decorators for stdio mode.
+    """
+    # Register all tools - they share implementation with stdio mode
+    server.tool()(top_gainers)
+    server.tool()(top_losers)
+    server.tool()(bollinger_scan)
+    server.tool()(rating_filter)
+    server.tool()(coin_analysis)
+    server.tool()(candle_pattern_scanner)
+    server.tool()(volume_scanner)
+    server.tool()(volume_analysis)
+    server.tool()(pivot_points_scanner)
+    server.tool()(tradingview_recommendation)
+
+    # Register resources
+    server.resource("exchanges://list")(exchanges_list)
 
 
 # =============================================================================
@@ -2164,35 +2198,32 @@ def main() -> None:
         logger.info("Starting SigmaPilot MCP in stdio mode")
         mcp.run()
     else:
-        # HTTP mode - optionally enable Auth0
+        # HTTP mode - create a new server with proper host/port configuration
         enable_auth = args.auth or bool(AUTH0_DOMAIN and AUTH0_AUDIENCE)
 
-        if enable_auth:
-            # Recreate server with auth if credentials are available
-            if AUTH0_AVAILABLE and AUTH0_DOMAIN and AUTH0_AUDIENCE:
-                mcp = create_mcp_server(enable_auth=True)
-                logger.info(f"Auth0 enabled - Domain: {AUTH0_DOMAIN}")
-            else:
-                if not AUTH0_AVAILABLE:
-                    logger.warning("Auth0 requested but dependencies not available")
-                else:
-                    logger.warning("Auth0 requested but AUTH0_DOMAIN/AUTH0_AUDIENCE not set")
-                logger.warning("Running without authentication (development mode)")
+        # Create server with proper configuration for HTTP mode
+        server = create_mcp_server(
+            enable_auth=enable_auth,
+            host=args.host,
+            port=args.port
+        )
+
+        # Register all tools on the HTTP server (they're defined as functions below)
+        register_tools(server)
+
+        # Register health check routes
+        register_health_routes(server)
+
+        if enable_auth and AUTH0_DOMAIN and AUTH0_AUDIENCE:
+            logger.info(f"Auth0 enabled - Domain: {AUTH0_DOMAIN}")
         else:
             logger.warning("Running without authentication (development mode)")
             logger.info("Set AUTH0_DOMAIN and AUTH0_AUDIENCE for production")
 
-        # Configure server settings
-        try:
-            mcp.settings.host = args.host
-            mcp.settings.port = args.port
-        except Exception:
-            pass
-
         logger.info(f"Starting SigmaPilot MCP on {args.host}:{args.port}")
         logger.info(f"Health check: http://{args.host}:{args.port}/health")
 
-        mcp.run(transport="streamable-http")
+        server.run(transport="streamable-http")
 
 
 if __name__ == "__main__":

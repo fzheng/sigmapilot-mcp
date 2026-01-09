@@ -1,9 +1,9 @@
 """
-TradingView MCP Server - Local Entry Point (stdio mode).
+SigmaPilot MCP Server - Local Entry Point (stdio mode).
 
 This module provides the main MCP server implementation for cryptocurrency and
-stock market analysis using TradingView data. It offers tools for market screening,
-technical analysis, and pattern detection.
+stock market analysis. It offers tools for market screening, technical analysis,
+and pattern detection.
 
 Features:
     - Top gainers/losers screening by exchange and timeframe
@@ -14,10 +14,10 @@ Features:
 
 Usage:
     # Run as stdio server (for Claude Desktop)
-    uv run python src/tradingview_mcp/server.py
+    uv run python src/sigmapilot_mcp/server.py
 
     # Run as HTTP server
-    uv run python src/tradingview_mcp/server.py streamable-http --port 8000
+    uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000
 
 Environment Variables:
     DEBUG_MCP: Enable debug logging (set to any value)
@@ -34,9 +34,9 @@ from typing_extensions import TypedDict
 from mcp.server.fastmcp import FastMCP
 
 # Import core analysis modules
-from tradingview_mcp.core.services.indicators import compute_metrics
-from tradingview_mcp.core.services.coinlist import load_symbols
-from tradingview_mcp.core.utils.validators import (
+from sigmapilot_mcp.core.services.indicators import compute_metrics
+from sigmapilot_mcp.core.services.coinlist import load_symbols
+from sigmapilot_mcp.core.utils.validators import (
     sanitize_timeframe,
     sanitize_exchange,
     tf_to_tv_resolution,
@@ -402,8 +402,8 @@ def _fetch_multi_changes(exchange: str, timeframes: List[str] | None, base_timef
 # =============================================================================
 
 mcp = FastMCP(
-	name="TradingView Screener",
-	instructions=("Crypto screener utilities backed by TradingView Screener. Tools: top_gainers, top_losers, multi_changes."),
+	name="SigmaPilot Screener",
+	instructions=("AI-powered market screener with comprehensive technical analysis. Tools: top_gainers, top_losers, multi_changes."),
 )
 
 
@@ -564,16 +564,169 @@ def coin_analysis(
             adx = indicators.get("ADX", 0)
             stoch_k = indicators.get("Stoch.K", 0)
             stoch_d = indicators.get("Stoch.D", 0)
-            
+
             # Volume analysis
             volume = indicators.get("volume", 0)
-            
+
             # Price levels
             high = indicators.get("high", 0)
             low = indicators.get("low", 0)
             open_price = indicators.get("open", 0)
             close_price = indicators.get("close", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Ichimoku Cloud
+            # =================================================================
+            ichimoku_base = indicators.get("Ichimoku.BLine", 0)  # Kijun-sen (Base Line)
+            ichimoku_conversion = indicators.get("Ichimoku.CLine", 0)  # Tenkan-sen (Conversion Line)
+            ichimoku_lead_a = indicators.get("Ichimoku.Lead1", 0)  # Senkou Span A (Leading Span A)
+            ichimoku_lead_b = indicators.get("Ichimoku.Lead2", 0)  # Senkou Span B (Leading Span B)
+
+            # =================================================================
+            # NEW INDICATORS - VWAP
+            # =================================================================
+            vwap = indicators.get("VWAP", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Pivot Points
+            # =================================================================
+            # Classic Pivot Points
+            pivot_classic = indicators.get("Pivot.M.Classic.Middle", 0)
+            pivot_classic_r1 = indicators.get("Pivot.M.Classic.R1", 0)
+            pivot_classic_r2 = indicators.get("Pivot.M.Classic.R2", 0)
+            pivot_classic_r3 = indicators.get("Pivot.M.Classic.R3", 0)
+            pivot_classic_s1 = indicators.get("Pivot.M.Classic.S1", 0)
+            pivot_classic_s2 = indicators.get("Pivot.M.Classic.S2", 0)
+            pivot_classic_s3 = indicators.get("Pivot.M.Classic.S3", 0)
+
+            # Fibonacci Pivot Points
+            pivot_fib = indicators.get("Pivot.M.Fibonacci.Middle", 0)
+            pivot_fib_r1 = indicators.get("Pivot.M.Fibonacci.R1", 0)
+            pivot_fib_r2 = indicators.get("Pivot.M.Fibonacci.R2", 0)
+            pivot_fib_r3 = indicators.get("Pivot.M.Fibonacci.R3", 0)
+            pivot_fib_s1 = indicators.get("Pivot.M.Fibonacci.S1", 0)
+            pivot_fib_s2 = indicators.get("Pivot.M.Fibonacci.S2", 0)
+            pivot_fib_s3 = indicators.get("Pivot.M.Fibonacci.S3", 0)
+
+            # Camarilla Pivot Points
+            pivot_cam = indicators.get("Pivot.M.Camarilla.Middle", 0)
+            pivot_cam_r1 = indicators.get("Pivot.M.Camarilla.R1", 0)
+            pivot_cam_r2 = indicators.get("Pivot.M.Camarilla.R2", 0)
+            pivot_cam_r3 = indicators.get("Pivot.M.Camarilla.R3", 0)
+            pivot_cam_s1 = indicators.get("Pivot.M.Camarilla.S1", 0)
+            pivot_cam_s2 = indicators.get("Pivot.M.Camarilla.S2", 0)
+            pivot_cam_s3 = indicators.get("Pivot.M.Camarilla.S3", 0)
+
+            # =================================================================
+            # NEW INDICATORS - TradingView Recommendations
+            # =================================================================
+            recommend_all = indicators.get("Recommend.All", 0)  # Overall recommendation
+            recommend_ma = indicators.get("Recommend.MA", 0)  # Moving averages recommendation
+            recommend_other = indicators.get("Recommend.Other", 0)  # Oscillators recommendation
+
+            # =================================================================
+            # NEW INDICATORS - Williams %R
+            # =================================================================
+            williams_r = indicators.get("W.R", 0)
+
+            # =================================================================
+            # NEW INDICATORS - CCI (Commodity Channel Index)
+            # =================================================================
+            cci = indicators.get("CCI20", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Awesome Oscillator
+            # =================================================================
+            ao = indicators.get("AO", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Ultimate Oscillator
+            # =================================================================
+            uo = indicators.get("UO", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Momentum
+            # =================================================================
+            momentum = indicators.get("Mom", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Hull MA and VWMA
+            # =================================================================
+            hma = indicators.get("HullMA9", 0)
+            vwma = indicators.get("VWMA", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Parabolic SAR
+            # =================================================================
+            psar = indicators.get("P.SAR", 0)
+
+            # =================================================================
+            # NEW INDICATORS - Additional Moving Averages
+            # =================================================================
+            sma5 = indicators.get("SMA5", 0)
+            sma10 = indicators.get("SMA10", 0)
+            sma30 = indicators.get("SMA30", 0)
+            sma50 = indicators.get("SMA50", 0)
+            sma100 = indicators.get("SMA100", 0)
+            sma200 = indicators.get("SMA200", 0)
+            ema5 = indicators.get("EMA5", 0)
+            ema10 = indicators.get("EMA10", 0)
+            ema30 = indicators.get("EMA30", 0)
+            ema100 = indicators.get("EMA100", 0)
             
+            # =================================================================
+            # Helper functions for signal interpretation
+            # =================================================================
+            def get_recommendation_text(value):
+                """Convert TradingView recommendation value to text."""
+                if value >= 0.5:
+                    return "STRONG_BUY"
+                elif value >= 0.1:
+                    return "BUY"
+                elif value > -0.1:
+                    return "NEUTRAL"
+                elif value > -0.5:
+                    return "SELL"
+                else:
+                    return "STRONG_SELL"
+
+            def get_williams_r_signal(value):
+                """Interpret Williams %R value."""
+                if value > -20:
+                    return "Overbought"
+                elif value < -80:
+                    return "Oversold"
+                else:
+                    return "Neutral"
+
+            def get_cci_signal(value):
+                """Interpret CCI value."""
+                if value > 100:
+                    return "Overbought"
+                elif value < -100:
+                    return "Oversold"
+                else:
+                    return "Neutral"
+
+            def get_ichimoku_signal(close, lead_a, lead_b, conversion, base):
+                """Determine Ichimoku Cloud signal."""
+                if lead_a == 0 or lead_b == 0:
+                    return "No Data"
+                cloud_top = max(lead_a, lead_b)
+                cloud_bottom = min(lead_a, lead_b)
+                if close > cloud_top:
+                    return "Bullish (Above Cloud)"
+                elif close < cloud_bottom:
+                    return "Bearish (Below Cloud)"
+                else:
+                    return "Neutral (Inside Cloud)"
+
+            def get_psar_signal(close, psar_val):
+                """Determine Parabolic SAR signal."""
+                if psar_val == 0:
+                    return "No Data"
+                return "Bullish (Price above SAR)" if close > psar_val else "Bearish (Price below SAR)"
+
             return {
                 "symbol": full_symbol,
                 "exchange": exchange,
@@ -586,7 +739,8 @@ def coin_analysis(
                     "low": round(low, 6) if low else None,
                     "close": round(close_price, 6) if close_price else None,
                     "change_percent": metrics['change'],
-                    "volume": volume
+                    "volume": volume,
+                    "vwap": round(vwap, 6) if vwap else None
                 },
                 "bollinger_analysis": {
                     "rating": metrics['rating'],
@@ -595,33 +749,138 @@ def coin_analysis(
                     "bb_upper": round(indicators.get("BB.upper", 0), 6),
                     "bb_middle": round(indicators.get("SMA20", 0), 6),
                     "bb_lower": round(indicators.get("BB.lower", 0), 6),
-                    "position": "Above Upper" if close_price > indicators.get("BB.upper", 0) else 
-                               "Below Lower" if close_price < indicators.get("BB.lower", 0) else 
+                    "position": "Above Upper" if close_price > indicators.get("BB.upper", 0) else
+                               "Below Lower" if close_price < indicators.get("BB.lower", 0) else
                                "Within Bands"
                 },
-                "technical_indicators": {
-                    "rsi": round(indicators.get("RSI", 0), 2),
-                    "rsi_signal": "Overbought" if indicators.get("RSI", 0) > 70 else
-                                 "Oversold" if indicators.get("RSI", 0) < 30 else "Neutral",
-                    "sma20": round(indicators.get("SMA20", 0), 6),
-                    "ema9": round(indicators.get("EMA9", 0), 6),
-                    "ema21": round(indicators.get("EMA21", 0), 6),
-                    "ema50": round(indicators.get("EMA50", 0), 6),
-                    "ema200": round(indicators.get("EMA200", 0), 6),
-                    "atr": round(indicators.get("ATR", 0), 6),
-                    "macd": round(macd, 6),
-                    "macd_signal": round(macd_signal, 6),
-                    "macd_divergence": round(macd - macd_signal, 6),
-                    "adx": round(adx, 2),
-                    "trend_strength": "Strong" if adx > 25 else "Weak",
-                    "stoch_k": round(stoch_k, 2),
-                    "stoch_d": round(stoch_d, 2)
+                "ichimoku_cloud": {
+                    "conversion_line": round(ichimoku_conversion, 6) if ichimoku_conversion else None,
+                    "base_line": round(ichimoku_base, 6) if ichimoku_base else None,
+                    "leading_span_a": round(ichimoku_lead_a, 6) if ichimoku_lead_a else None,
+                    "leading_span_b": round(ichimoku_lead_b, 6) if ichimoku_lead_b else None,
+                    "signal": get_ichimoku_signal(close_price, ichimoku_lead_a, ichimoku_lead_b,
+                                                   ichimoku_conversion, ichimoku_base),
+                    "tk_cross": "Bullish" if ichimoku_conversion > ichimoku_base else "Bearish" if ichimoku_conversion < ichimoku_base else "Neutral"
+                },
+                "pivot_points": {
+                    "classic": {
+                        "pivot": round(pivot_classic, 6) if pivot_classic else None,
+                        "r1": round(pivot_classic_r1, 6) if pivot_classic_r1 else None,
+                        "r2": round(pivot_classic_r2, 6) if pivot_classic_r2 else None,
+                        "r3": round(pivot_classic_r3, 6) if pivot_classic_r3 else None,
+                        "s1": round(pivot_classic_s1, 6) if pivot_classic_s1 else None,
+                        "s2": round(pivot_classic_s2, 6) if pivot_classic_s2 else None,
+                        "s3": round(pivot_classic_s3, 6) if pivot_classic_s3 else None
+                    },
+                    "fibonacci": {
+                        "pivot": round(pivot_fib, 6) if pivot_fib else None,
+                        "r1": round(pivot_fib_r1, 6) if pivot_fib_r1 else None,
+                        "r2": round(pivot_fib_r2, 6) if pivot_fib_r2 else None,
+                        "r3": round(pivot_fib_r3, 6) if pivot_fib_r3 else None,
+                        "s1": round(pivot_fib_s1, 6) if pivot_fib_s1 else None,
+                        "s2": round(pivot_fib_s2, 6) if pivot_fib_s2 else None,
+                        "s3": round(pivot_fib_s3, 6) if pivot_fib_s3 else None
+                    },
+                    "camarilla": {
+                        "pivot": round(pivot_cam, 6) if pivot_cam else None,
+                        "r1": round(pivot_cam_r1, 6) if pivot_cam_r1 else None,
+                        "r2": round(pivot_cam_r2, 6) if pivot_cam_r2 else None,
+                        "r3": round(pivot_cam_r3, 6) if pivot_cam_r3 else None,
+                        "s1": round(pivot_cam_s1, 6) if pivot_cam_s1 else None,
+                        "s2": round(pivot_cam_s2, 6) if pivot_cam_s2 else None,
+                        "s3": round(pivot_cam_s3, 6) if pivot_cam_s3 else None
+                    }
+                },
+                "tradingview_recommendations": {
+                    "overall": {
+                        "value": round(recommend_all, 3) if recommend_all else 0,
+                        "signal": get_recommendation_text(recommend_all or 0)
+                    },
+                    "moving_averages": {
+                        "value": round(recommend_ma, 3) if recommend_ma else 0,
+                        "signal": get_recommendation_text(recommend_ma or 0)
+                    },
+                    "oscillators": {
+                        "value": round(recommend_other, 3) if recommend_other else 0,
+                        "signal": get_recommendation_text(recommend_other or 0)
+                    }
+                },
+                "oscillators": {
+                    "rsi": {
+                        "value": round(indicators.get("RSI", 0), 2),
+                        "signal": "Overbought" if indicators.get("RSI", 0) > 70 else
+                                 "Oversold" if indicators.get("RSI", 0) < 30 else "Neutral"
+                    },
+                    "williams_r": {
+                        "value": round(williams_r, 2) if williams_r else None,
+                        "signal": get_williams_r_signal(williams_r or -50)
+                    },
+                    "cci": {
+                        "value": round(cci, 2) if cci else None,
+                        "signal": get_cci_signal(cci or 0)
+                    },
+                    "awesome_oscillator": round(ao, 4) if ao else None,
+                    "ultimate_oscillator": {
+                        "value": round(uo, 2) if uo else None,
+                        "signal": "Overbought" if (uo or 50) > 70 else "Oversold" if (uo or 50) < 30 else "Neutral"
+                    },
+                    "momentum": round(momentum, 4) if momentum else None,
+                    "stochastic": {
+                        "k": round(stoch_k, 2),
+                        "d": round(stoch_d, 2),
+                        "signal": "Overbought" if stoch_k > 80 else "Oversold" if stoch_k < 20 else "Neutral"
+                    }
+                },
+                "moving_averages": {
+                    "simple": {
+                        "sma5": round(sma5, 6) if sma5 else None,
+                        "sma10": round(sma10, 6) if sma10 else None,
+                        "sma20": round(indicators.get("SMA20", 0), 6),
+                        "sma30": round(sma30, 6) if sma30 else None,
+                        "sma50": round(sma50, 6) if sma50 else None,
+                        "sma100": round(sma100, 6) if sma100 else None,
+                        "sma200": round(sma200, 6) if sma200 else None
+                    },
+                    "exponential": {
+                        "ema5": round(ema5, 6) if ema5 else None,
+                        "ema9": round(indicators.get("EMA9", 0), 6),
+                        "ema10": round(ema10, 6) if ema10 else None,
+                        "ema21": round(indicators.get("EMA21", 0), 6),
+                        "ema30": round(ema30, 6) if ema30 else None,
+                        "ema50": round(indicators.get("EMA50", 0), 6),
+                        "ema100": round(ema100, 6) if ema100 else None,
+                        "ema200": round(indicators.get("EMA200", 0), 6)
+                    },
+                    "hull_ma": round(hma, 6) if hma else None,
+                    "vwma": round(vwma, 6) if vwma else None
+                },
+                "trend_indicators": {
+                    "macd": {
+                        "macd": round(macd, 6),
+                        "signal": round(macd_signal, 6),
+                        "histogram": round(macd - macd_signal, 6),
+                        "trend": "Bullish" if macd > macd_signal else "Bearish"
+                    },
+                    "adx": {
+                        "value": round(adx, 2),
+                        "trend_strength": "Strong" if adx > 25 else "Weak"
+                    },
+                    "parabolic_sar": {
+                        "value": round(psar, 6) if psar else None,
+                        "signal": get_psar_signal(close_price, psar or 0)
+                    },
+                    "atr": round(indicators.get("ATR", 0), 6)
                 },
                 "market_sentiment": {
                     "overall_rating": metrics['rating'],
                     "buy_sell_signal": metrics['signal'],
                     "volatility": "High" if metrics['bbw'] > 0.05 else "Medium" if metrics['bbw'] > 0.02 else "Low",
-                    "momentum": "Bullish" if metrics['change'] > 0 else "Bearish"
+                    "momentum": "Bullish" if metrics['change'] > 0 else "Bearish",
+                    "trend_alignment": {
+                        "short_term": "Bullish" if close_price > (indicators.get("SMA20", 0) or close_price) else "Bearish",
+                        "medium_term": "Bullish" if close_price > (sma50 or close_price) else "Bearish",
+                        "long_term": "Bullish" if close_price > (sma200 or close_price) else "Bearish"
+                    }
                 }
             }
             
@@ -1475,12 +1734,309 @@ def smart_volume_scanner(exchange: str = "KUCOIN", min_volume_ratio: float = 2.0
 
 
 # =============================================================================
+# MCP Tools - Advanced Indicator Scanners
+# =============================================================================
+
+@mcp.tool()
+def pivot_points_scanner(
+    exchange: str = "KUCOIN",
+    timeframe: str = "1D",
+    pivot_type: str = "classic",
+    position: str = "near_pivot",
+    limit: int = 25
+) -> list[dict]:
+    """Scan for coins near pivot point levels.
+
+    Identifies symbols that are trading near key pivot point levels,
+    which often act as support/resistance zones.
+
+    Args:
+        exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
+        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
+        pivot_type: Type of pivot points - "classic", "fibonacci", or "camarilla"
+        position: Price position filter:
+            - "near_pivot": Price within 1% of pivot
+            - "near_support": Price within 1% of S1, S2, or S3
+            - "near_resistance": Price within 1% of R1, R2, or R3
+            - "any": Any position near levels
+        limit: Number of results (max 50)
+
+    Returns:
+        List of coins near pivot point levels with analysis
+    """
+    exchange = sanitize_exchange(exchange, "KUCOIN")
+    timeframe = sanitize_timeframe(timeframe, "1D")
+    limit = max(1, min(limit, 50))
+
+    # Get symbols
+    symbols = load_symbols(exchange)
+    if not symbols:
+        return []
+
+    screener = EXCHANGE_SCREENER.get(exchange, "crypto")
+    results = []
+
+    # Map pivot type to indicator keys
+    pivot_prefix = {
+        "classic": "Pivot.M.Classic",
+        "fibonacci": "Pivot.M.Fibonacci",
+        "camarilla": "Pivot.M.Camarilla"
+    }.get(pivot_type, "Pivot.M.Classic")
+
+    # Process in batches
+    batch_size = 100
+    for i in range(0, min(len(symbols), 500), batch_size):
+        batch_symbols = symbols[i:i + batch_size]
+
+        try:
+            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
+        except Exception:
+            continue
+
+        for symbol, data in analysis.items():
+            try:
+                if not data or not hasattr(data, 'indicators'):
+                    continue
+
+                indicators = data.indicators
+                close = indicators.get('close', 0)
+                if not close:
+                    continue
+
+                # Get pivot points
+                pivot = indicators.get(f"{pivot_prefix}.Middle", 0)
+                r1 = indicators.get(f"{pivot_prefix}.R1", 0)
+                r2 = indicators.get(f"{pivot_prefix}.R2", 0)
+                r3 = indicators.get(f"{pivot_prefix}.R3", 0)
+                s1 = indicators.get(f"{pivot_prefix}.S1", 0)
+                s2 = indicators.get(f"{pivot_prefix}.S2", 0)
+                s3 = indicators.get(f"{pivot_prefix}.S3", 0)
+
+                if not pivot:
+                    continue
+
+                # Calculate proximity to levels (within 1%)
+                proximity_threshold = 0.01  # 1%
+
+                def is_near(price, level):
+                    if not level:
+                        return False
+                    return abs(price - level) / level <= proximity_threshold
+
+                # Determine position
+                near_levels = []
+                if is_near(close, pivot):
+                    near_levels.append(("Pivot", pivot))
+                if is_near(close, s1):
+                    near_levels.append(("S1", s1))
+                if is_near(close, s2):
+                    near_levels.append(("S2", s2))
+                if is_near(close, s3):
+                    near_levels.append(("S3", s3))
+                if is_near(close, r1):
+                    near_levels.append(("R1", r1))
+                if is_near(close, r2):
+                    near_levels.append(("R2", r2))
+                if is_near(close, r3):
+                    near_levels.append(("R3", r3))
+
+                if not near_levels:
+                    continue
+
+                # Apply position filter
+                if position == "near_pivot" and not any(l[0] == "Pivot" for l in near_levels):
+                    continue
+                elif position == "near_support" and not any(l[0].startswith("S") for l in near_levels):
+                    continue
+                elif position == "near_resistance" and not any(l[0].startswith("R") for l in near_levels):
+                    continue
+
+                # Calculate price change
+                open_price = indicators.get('open', close)
+                change_pct = ((close - open_price) / open_price) * 100 if open_price else 0
+
+                # Determine trading signal based on position
+                signal = "NEUTRAL"
+                if any(l[0].startswith("S") for l in near_levels) and change_pct > 0:
+                    signal = "POTENTIAL_BOUNCE"
+                elif any(l[0].startswith("R") for l in near_levels) and change_pct < 0:
+                    signal = "POTENTIAL_REJECTION"
+                elif any(l[0] == "Pivot" for l in near_levels):
+                    signal = "AT_PIVOT"
+
+                results.append({
+                    "symbol": symbol,
+                    "price": round(close, 6),
+                    "change_percent": round(change_pct, 2),
+                    "pivot_type": pivot_type,
+                    "near_levels": [{"level": l[0], "price": round(l[1], 6)} for l in near_levels],
+                    "pivot_levels": {
+                        "pivot": round(pivot, 6) if pivot else None,
+                        "r1": round(r1, 6) if r1 else None,
+                        "r2": round(r2, 6) if r2 else None,
+                        "r3": round(r3, 6) if r3 else None,
+                        "s1": round(s1, 6) if s1 else None,
+                        "s2": round(s2, 6) if s2 else None,
+                        "s3": round(s3, 6) if s3 else None
+                    },
+                    "signal": signal,
+                    "rsi": round(indicators.get("RSI", 50), 2)
+                })
+
+            except Exception:
+                continue
+
+    # Sort by number of near levels (more levels = stronger signal)
+    results.sort(key=lambda x: len(x["near_levels"]), reverse=True)
+
+    return results[:limit]
+
+
+@mcp.tool()
+def recommendation_scanner(
+    exchange: str = "KUCOIN",
+    timeframe: str = "15m",
+    signal_filter: str = "STRONG_BUY",
+    min_strength: float = 0.5,
+    limit: int = 25
+) -> list[dict]:
+    """Scan for coins based on TradingView's recommendation signals.
+
+    Uses TradingView's built-in technical analysis recommendations which
+    combine multiple indicators to generate Buy/Sell signals.
+
+    Args:
+        exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
+        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
+        signal_filter: Filter by signal type:
+            - "STRONG_BUY": Recommendation >= 0.5
+            - "BUY": Recommendation >= 0.1
+            - "NEUTRAL": Recommendation between -0.1 and 0.1
+            - "SELL": Recommendation <= -0.1
+            - "STRONG_SELL": Recommendation <= -0.5
+            - "any": All signals
+        min_strength: Minimum absolute recommendation value (0.0 to 1.0)
+        limit: Number of results (max 50)
+
+    Returns:
+        List of coins matching recommendation criteria with detailed signals
+    """
+    exchange = sanitize_exchange(exchange, "KUCOIN")
+    timeframe = sanitize_timeframe(timeframe, "15m")
+    min_strength = max(0.0, min(1.0, min_strength))
+    limit = max(1, min(limit, 50))
+
+    # Get symbols
+    symbols = load_symbols(exchange)
+    if not symbols:
+        return []
+
+    screener = EXCHANGE_SCREENER.get(exchange, "crypto")
+    results = []
+
+    def get_signal_text(value):
+        """Convert recommendation value to signal text."""
+        if value >= 0.5:
+            return "STRONG_BUY"
+        elif value >= 0.1:
+            return "BUY"
+        elif value > -0.1:
+            return "NEUTRAL"
+        elif value > -0.5:
+            return "SELL"
+        else:
+            return "STRONG_SELL"
+
+    # Process in batches
+    batch_size = 100
+    for i in range(0, min(len(symbols), 500), batch_size):
+        batch_symbols = symbols[i:i + batch_size]
+
+        try:
+            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
+        except Exception:
+            continue
+
+        for symbol, data in analysis.items():
+            try:
+                if not data or not hasattr(data, 'indicators'):
+                    continue
+
+                indicators = data.indicators
+
+                # Get recommendation values
+                recommend_all = indicators.get("Recommend.All", 0) or 0
+                recommend_ma = indicators.get("Recommend.MA", 0) or 0
+                recommend_other = indicators.get("Recommend.Other", 0) or 0
+
+                # Get signal type
+                signal = get_signal_text(recommend_all)
+
+                # Apply signal filter
+                if signal_filter != "any":
+                    if signal_filter == "STRONG_BUY" and recommend_all < 0.5:
+                        continue
+                    elif signal_filter == "BUY" and (recommend_all < 0.1 or recommend_all >= 0.5):
+                        continue
+                    elif signal_filter == "NEUTRAL" and (recommend_all <= -0.1 or recommend_all >= 0.1):
+                        continue
+                    elif signal_filter == "SELL" and (recommend_all > -0.1 or recommend_all <= -0.5):
+                        continue
+                    elif signal_filter == "STRONG_SELL" and recommend_all > -0.5:
+                        continue
+
+                # Apply minimum strength filter
+                if abs(recommend_all) < min_strength:
+                    continue
+
+                # Get price data
+                close = indicators.get('close', 0)
+                open_price = indicators.get('open', close)
+                change_pct = ((close - open_price) / open_price) * 100 if open_price else 0
+
+                results.append({
+                    "symbol": symbol,
+                    "price": round(close, 6) if close else None,
+                    "change_percent": round(change_pct, 2),
+                    "recommendations": {
+                        "overall": {
+                            "value": round(recommend_all, 3),
+                            "signal": signal
+                        },
+                        "moving_averages": {
+                            "value": round(recommend_ma, 3),
+                            "signal": get_signal_text(recommend_ma)
+                        },
+                        "oscillators": {
+                            "value": round(recommend_other, 3),
+                            "signal": get_signal_text(recommend_other)
+                        }
+                    },
+                    "signal_strength": abs(round(recommend_all, 3)),
+                    "agreement": "ALIGNED" if (recommend_ma > 0) == (recommend_other > 0) else "DIVERGENT",
+                    "technical_data": {
+                        "rsi": round(indicators.get("RSI", 50), 2),
+                        "macd": round(indicators.get("MACD.macd", 0), 6),
+                        "adx": round(indicators.get("ADX", 0), 2)
+                    }
+                })
+
+            except Exception:
+                continue
+
+    # Sort by signal strength (strongest first)
+    results.sort(key=lambda x: x["signal_strength"], reverse=True)
+
+    return results[:limit]
+
+
+# =============================================================================
 # Entry Point
 # =============================================================================
 
 def main() -> None:
     """
-    Main entry point for the TradingView MCP server.
+    Main entry point for the SigmaPilot MCP server.
 
     Parses command line arguments and starts the server in either stdio mode
     (for Claude Desktop) or HTTP mode (for remote access).
@@ -1490,7 +2046,7 @@ def main() -> None:
         --host: Server host for HTTP mode (default: 127.0.0.1)
         --port: Server port for HTTP mode (default: 8000)
     """
-    parser = argparse.ArgumentParser(description="TradingView Screener MCP server")
+    parser = argparse.ArgumentParser(description="SigmaPilot MCP server")
     parser.add_argument("transport", choices=["stdio", "streamable-http"], default="stdio", nargs="?", help="Transport (default stdio)")
     parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))

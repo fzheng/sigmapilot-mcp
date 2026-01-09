@@ -1,6 +1,6 @@
 # Remote Deployment Guide
 
-This guide covers deploying TradingView MCP Server to Railway with Auth0 authentication.
+This guide covers deploying SigmaPilot MCP Server to Railway with Auth0 authentication.
 
 Once deployed, your MCP server can be connected from **any MCP-compatible AI platform**:
 - **Claude.ai** - Via [Connectors](https://claude.ai/settings/connectors) ([documentation](https://support.claude.com/en/articles/11724452-using-the-connectors-directory-to-extend-claude-s-capabilities))
@@ -19,15 +19,15 @@ Once deployed, your MCP server can be connected from **any MCP-compatible AI pla
 ### 1.1 Create Auth0 Account
 
 1. Go to [auth0.com](https://auth0.com/) and sign up
-2. Create a new tenant (e.g., `tradingview-mcp`)
+2. Create a new tenant (e.g., `sigmapilot-mcp`)
 
 ### 1.2 Create an API
 
 1. In Auth0 Dashboard, go to **Applications > APIs**
 2. Click **+ Create API**
 3. Fill in:
-   - **Name**: `TradingView MCP API`
-   - **Identifier**: `https://tradingview-mcp.yourdomain.com` (this becomes your `AUTH0_AUDIENCE`)
+   - **Name**: `SigmaPilot MCP API`
+   - **Identifier**: `https://sigmapilot-mcp.yourdomain.com` (this becomes your `AUTH0_AUDIENCE`)
    - **Signing Algorithm**: RS256
 4. Click **Create**
 
@@ -36,7 +36,7 @@ Once deployed, your MCP server can be connected from **any MCP-compatible AI pla
 1. Go to **Applications > Applications**
 2. Click **+ Create Application**
 3. Select **Machine to Machine Applications**
-4. Name it: `TradingView MCP Client`
+4. Name it: `SigmaPilot MCP Client`
 5. Select the API you just created
 6. Grant all permissions
 
@@ -53,7 +53,7 @@ From the Auth0 Dashboard, note:
 1. Go to [railway.app](https://railway.app/)
 2. Click **New Project**
 3. Select **Deploy from GitHub repo**
-4. Authorize and select your `tradingview-mcp` repository
+4. Authorize and select your `sigmapilot-mcp` repository
 
 ### 2.2 Configure Environment Variables
 
@@ -61,7 +61,7 @@ In Railway dashboard, go to **Variables** and add:
 
 ```
 AUTH0_DOMAIN=your-tenant.auth0.com
-AUTH0_AUDIENCE=https://tradingview-mcp.yourdomain.com
+AUTH0_AUDIENCE=https://sigmapilot-mcp.yourdomain.com
 RESOURCE_SERVER_URL=https://your-app.up.railway.app/mcp
 ```
 
@@ -102,7 +102,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "tradingview-remote": {
+    "sigmapilot-remote": {
       "url": "https://your-app.up.railway.app/mcp",
       "transport": "streamable-http"
     }
@@ -126,7 +126,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
                                               │
                                               ▼
                                      ┌─────────────────┐
-                                     │  TradingView    │
+                                     │  Market Data    │
                                      │  Public APIs    │
                                      └─────────────────┘
 ```
@@ -147,7 +147,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
 
 ### "No data returned"
 
-1. TradingView rate limiting - wait and retry
+1. Rate limiting - wait and retry
 2. Check if the exchange/symbol is supported
 
 ## Security Notes

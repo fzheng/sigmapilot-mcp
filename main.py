@@ -1,8 +1,8 @@
 """
-TradingView MCP Server - Remote Entry Point with Auth0 Authentication.
+SigmaPilot MCP Server - Remote Entry Point with Auth0 Authentication.
 
 This module provides a remote-deployable MCP server with OAuth authentication
-via Auth0. It wraps the existing TradingView analysis tools and exposes them
+via Auth0. It wraps the existing market analysis tools and exposes them
 securely over HTTP.
 
 Usage:
@@ -14,7 +14,7 @@ Usage:
 
 Environment Variables Required:
     AUTH0_DOMAIN: Your Auth0 domain (e.g., your-tenant.auth0.com)
-    AUTH0_AUDIENCE: API identifier from Auth0 (e.g., https://tradingview-mcp.example.com)
+    AUTH0_AUDIENCE: API identifier from Auth0 (e.g., https://sigmapilot-mcp.example.com)
     RESOURCE_SERVER_URL: Public URL of this server (e.g., https://your-app.railway.app/mcp)
     PORT: Server port (default: 8000, Railway sets this automatically)
 """
@@ -31,15 +31,15 @@ from starlette.requests import Request
 
 # Auth0 JWT verification
 try:
-    from tradingview_mcp.core.utils.auth import create_auth0_verifier, Auth0TokenVerifier
+    from sigmapilot_mcp.core.utils.auth import create_auth0_verifier, Auth0TokenVerifier
     AUTH0_VERIFIER_AVAILABLE = True
 except ImportError:
     AUTH0_VERIFIER_AVAILABLE = False
 
-# Import TradingView analysis functions
-from tradingview_mcp.core.services.indicators import compute_metrics
-from tradingview_mcp.core.services.coinlist import load_symbols
-from tradingview_mcp.core.utils.validators import (
+# Import market analysis functions
+from sigmapilot_mcp.core.services.indicators import compute_metrics
+from sigmapilot_mcp.core.services.coinlist import load_symbols
+from sigmapilot_mcp.core.utils.validators import (
     sanitize_timeframe,
     sanitize_exchange,
     EXCHANGE_SCREENER,
@@ -93,9 +93,9 @@ if ENABLE_AUTH and AUTH0_VERIFIER_AVAILABLE:
 
 # Server instructions for AI assistants
 SERVER_INSTRUCTIONS = """
-TradingView MCP Server - Real-time Cryptocurrency and Stock Market Analysis
+SigmaPilot MCP Server - Real-time Cryptocurrency and Stock Market Analysis
 
-This server provides technical analysis tools powered by TradingView data.
+This server provides AI-powered technical analysis tools for market intelligence.
 
 Available Tools:
 - top_gainers: Find best performing assets on an exchange
@@ -131,7 +131,7 @@ def create_mcp_server() -> FastMCP:
 
     # Create the FastMCP server with all configuration
     server = FastMCP(
-        name="TradingView MCP",
+        name="SigmaPilot MCP",
         instructions=SERVER_INSTRUCTIONS,
         host=HOST,
         port=PORT,
@@ -459,8 +459,8 @@ async def health_check(request: Request) -> JSONResponse:
     """Health check endpoint for Railway and other deployment platforms."""
     return JSONResponse({
         "status": "healthy",
-        "service": "tradingview-mcp",
-        "version": "1.1.0",
+        "service": "sigmapilot-mcp",
+        "version": "1.2.0",
     })
 
 
@@ -469,8 +469,8 @@ async def root_health(request: Request) -> JSONResponse:
     """Root endpoint returns health status for convenience."""
     return JSONResponse({
         "status": "healthy",
-        "service": "tradingview-mcp",
-        "version": "1.1.0",
+        "service": "sigmapilot-mcp",
+        "version": "1.2.0",
     })
 
 
@@ -489,7 +489,7 @@ def main():
         print("[WARN] Running without authentication (development mode)")
         print("   Set AUTH0_DOMAIN and AUTH0_AUDIENCE for production")
 
-    print(f"[START] TradingView MCP Server on {HOST}:{PORT}")
+    print(f"[START] SigmaPilot MCP Server on {HOST}:{PORT}")
     print(f"   Endpoint: {RESOURCE_SERVER_URL}")
     print(f"   Health check: http://{HOST}:{PORT}/health")
 

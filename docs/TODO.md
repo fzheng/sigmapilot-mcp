@@ -1,8 +1,27 @@
-# TradingView MCP Server - Development TODO
+# SigmaPilot MCP Server - Development TODO
 
 This document tracks development tasks, improvements, and known issues.
 
 ## Completed
+
+### v1.2.0 (Current)
+- [x] Added Ichimoku Cloud indicator (Tenkan-sen, Kijun-sen, Senkou Span A/B)
+- [x] Added VWAP (Volume Weighted Average Price)
+- [x] Added Pivot Points (Classic, Fibonacci, Camarilla) with R1-R3, S1-S3 levels
+- [x] Added TradingView Recommendations (Overall, MA, Oscillators)
+- [x] Added Williams %R oscillator
+- [x] Added CCI (Commodity Channel Index)
+- [x] Added Awesome Oscillator (AO)
+- [x] Added Ultimate Oscillator (UO)
+- [x] Added Momentum indicator
+- [x] Added Hull MA and VWMA moving averages
+- [x] Added Parabolic SAR indicator
+- [x] Added additional SMA periods (5, 10, 30, 50, 100, 200)
+- [x] Added additional EMA periods (5, 10, 30, 100)
+- [x] Created `pivot_points_scanner` MCP tool
+- [x] Created `recommendation_scanner` MCP tool
+- [x] Comprehensive tests for all new indicators (45 new tests, 223 total)
+- [x] Renamed project from tradingview-mcp to sigmapilot-mcp
 
 ### v1.1.0
 - [x] Updated documentation for multi-platform MCP support (Claude.ai Connectors, ChatGPT, etc.)
@@ -25,7 +44,7 @@ This document tracks development tasks, improvements, and known issues.
 ## High Priority
 
 ### Testing
-- [ ] Integration tests with mock TradingView API
+- [ ] Integration tests with mock market API
 - [ ] End-to-end tests for MCP tools
 
 ### Infrastructure
@@ -57,12 +76,13 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] Add Docker deployment option
 
 ### Features (Future)
-- [ ] Add more technical indicators (Fibonacci, Ichimoku)
+- [x] Add more technical indicators (Fibonacci, Ichimoku) - Completed in v1.2.0
 - [ ] Support for custom indicator formulas
 - [ ] Historical data analysis tools
 - [ ] Alert/notification system
 - [ ] WebSocket support for real-time data
 - [ ] Multiple auth provider support (Google, GitHub)
+- [ ] Additional data sources beyond TradingView
 
 ## Notes
 

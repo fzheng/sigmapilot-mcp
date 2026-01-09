@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import pytest
-from tradingview_mcp.core.services.indicators import (
+from sigmapilot_mcp.core.services.indicators import (
     compute_change,
     compute_bbw,
     compute_bb_rating_signal,

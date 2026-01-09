@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
 
-from tradingview_mcp.core.services.screener_provider import (
+from sigmapilot_mcp.core.services.screener_provider import (
     _tf_to_tv_resolution,
     fetch_screener_indicators,
     fetch_screener_multi_changes,
@@ -277,7 +277,7 @@ class TestScreenerProviderIntegration:
     def test_timeframe_resolution_used_in_columns(self):
         """Test that timeframe resolution is applied to column names."""
         # This tests the internal logic without actually calling the API
-        from tradingview_mcp.core.utils.validators import tf_to_tv_resolution
+        from sigmapilot_mcp.core.utils.validators import tf_to_tv_resolution
 
         # When timeframe is 4h, resolution should be 240
         resolution = tf_to_tv_resolution("4h")

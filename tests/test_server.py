@@ -8,7 +8,7 @@ Tests cover:
 """
 
 import pytest
-from tradingview_mcp.server import (
+from sigmapilot_mcp.server import (
     _percent_change,
     _tf_to_tv_resolution,
     IndicatorMap,

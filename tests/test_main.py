@@ -304,12 +304,12 @@ class TestServerInstructions:
         """Test that server instructions are defined."""
         from main import SERVER_INSTRUCTIONS
         assert len(SERVER_INSTRUCTIONS) > 100
-        assert "TradingView" in SERVER_INSTRUCTIONS
+        assert "SigmaPilot" in SERVER_INSTRUCTIONS
 
     def test_server_name(self):
         """Test that MCP server has correct name."""
         from main import mcp
-        assert mcp.name == "TradingView MCP"
+        assert mcp.name == "SigmaPilot MCP"
 
 
 if __name__ == "__main__":

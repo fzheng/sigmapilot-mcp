@@ -1,6 +1,10 @@
-# TradingView MCP Server
+<p align="center">
+  <img src="img/SigmaPilot-light-mode.png" alt="SigmaPilot Logo" width="400">
+</p>
 
-A remote Model Context Protocol (MCP) server that provides real-time cryptocurrency and stock market analysis using TradingView data. Deployable to Railway with Auth0 authentication for secure access.
+# SigmaPilot MCP Server
+
+A remote Model Context Protocol (MCP) server that provides real-time cryptocurrency and stock market analysis. AI-powered market intelligence tools deployable to Railway with Auth0 authentication for secure access.
 
 ## Features
 
@@ -15,11 +19,15 @@ A remote Model Context Protocol (MCP) server that provides real-time cryptocurre
 - **Volume Breakout Scanner** - Find high-volume price breakouts
 
 ### Indicators Included
-- Bollinger Bands (BBW, position, rating)
-- Moving Averages (SMA20, EMA9, EMA21, EMA50, EMA200)
-- RSI, MACD, ADX, Stochastic
+- **Bollinger Bands** - BBW, position, rating, squeeze detection
+- **Moving Averages** - SMA (5, 10, 20, 30, 50, 100, 200), EMA (5, 9, 10, 21, 30, 50, 100, 200), Hull MA, VWMA
+- **Ichimoku Cloud** - Tenkan-sen, Kijun-sen, Senkou Span A/B, TK Cross signals
+- **Pivot Points** - Classic, Fibonacci, Camarilla (R1-R3, S1-S3)
+- **Oscillators** - RSI, Stochastic, Williams %R, CCI, Ultimate Oscillator, Awesome Oscillator
+- **Trend** - MACD, ADX, Parabolic SAR, Momentum
+- **Volume** - VWAP, Volume analysis
+- **Recommendations** - Overall, MA-based, Oscillator-based signals
 - ATR (Average True Range)
-- Volume analysis
 
 ### Supported Markets
 
@@ -77,7 +85,7 @@ Deploy as a secure remote MCP server with Auth0 authentication. Once deployed, c
    ```json
    {
      "mcpServers": {
-       "tradingview": {
+       "sigmapilot": {
          "url": "https://your-app.up.railway.app/mcp",
          "transport": "streamable-http"
        }
@@ -112,12 +120,12 @@ For local development or direct Claude Desktop connection (stdio mode).
    ```json
    {
      "mcpServers": {
-       "tradingview-mcp": {
+       "sigmapilot-mcp": {
          "command": "uv",
          "args": [
            "tool", "run", "--from",
-           "git+https://github.com/fzheng/tradingview-mcp.git",
-           "tradingview-mcp"
+           "git+https://github.com/fzheng/sigmapilot-mcp.git",
+           "sigmapilot-mcp"
          ]
        }
      }
@@ -148,6 +156,8 @@ For local development or direct Claude Desktop connection (stdio mode).
 | `volume_breakout_scanner` | Find high-volume price breakouts |
 | `volume_confirmation_analysis` | Analyze volume confirmation for a symbol |
 | `smart_volume_scanner` | Intelligent volume-based scanning |
+| `pivot_points_scanner` | Find coins near pivot point levels (Classic/Fibonacci/Camarilla) |
+| `recommendation_scanner` | Scan by Buy/Sell recommendations |
 
 ## Bollinger Band Rating System
 
@@ -175,15 +185,15 @@ For local development or direct Claude Desktop connection (stdio mode).
 
 ```bash
 # Clone and install
-git clone https://github.com/fzheng/tradingview-mcp.git
-cd tradingview-mcp
+git clone https://github.com/fzheng/sigmapilot-mcp.git
+cd sigmapilot-mcp
 uv sync
 
 # Run tests
 make test
 
 # Run locally (stdio mode)
-uv run python src/tradingview_mcp/server.py
+uv run python src/sigmapilot_mcp/server.py
 
 # Run as remote server (HTTP mode with optional auth)
 uv run python main.py
@@ -205,7 +215,7 @@ uv run python main.py
                                               │
                                               ▼
                                      ┌─────────────────┐
-                                     │  TradingView    │
+                                     │  Market Data    │
                                      │  Public APIs    │
                                      └─────────────────┘
 ```
@@ -224,4 +234,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Support
 
-- [GitHub Issues](https://github.com/fzheng/tradingview-mcp/issues)
+- [GitHub Issues](https://github.com/fzheng/sigmapilot-mcp/issues)

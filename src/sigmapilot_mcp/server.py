@@ -1497,13 +1497,12 @@ def volume_breakout_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", vo
 				price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
 
 				# Volume ratio calculation
-				# If SMA20 volume not available, use a simple heuristic
+				# If SMA20 volume not available, skip this symbol as we can't determine breakout
 				if sma20_volume and sma20_volume > 0:
 					volume_ratio = volume / sma20_volume
 				else:
-					# Estimate average volume as current volume / 2 (conservative)
-					avg_volume_estimate = volume / 2
-					volume_ratio = volume / avg_volume_estimate if avg_volume_estimate > 0 else 1
+					# Cannot determine volume breakout without historical average
+					continue
 
 				# Check conditions
 				if (abs(price_change) >= price_change_min and

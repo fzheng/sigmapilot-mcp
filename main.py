@@ -21,6 +21,7 @@ Environment Variables Required:
 
 from __future__ import annotations
 
+import logging
 import os
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -29,6 +30,13 @@ from pydantic import AnyHttpUrl
 from starlette.responses import JSONResponse
 from starlette.requests import Request
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Auth0 JWT verification
 try:
     from sigmapilot_mcp.core.utils.auth import create_auth0_verifier, Auth0TokenVerifier
@@ -36,26 +44,15 @@ try:
 except ImportError:
     AUTH0_VERIFIER_AVAILABLE = False
 
-# Import market analysis functions
-from sigmapilot_mcp.core.services.indicators import compute_metrics
-from sigmapilot_mcp.core.services.coinlist import load_symbols
-from sigmapilot_mcp.core.utils.validators import (
-    sanitize_timeframe,
-    sanitize_exchange,
-    EXCHANGE_SCREENER,
-    BBW_HIGH_VOLATILITY,
-    BBW_MEDIUM_VOLATILITY,
-    ADX_STRONG_TREND,
-    RSI_OVERBOUGHT,
-    RSI_OVERSOLD,
+# Import shared tools implementation
+from sigmapilot_mcp.core.services.tools import (
+    get_top_gainers,
+    get_top_losers,
+    get_bollinger_scan,
+    get_rating_filter,
+    get_coin_analysis,
+    get_exchanges_list,
 )
-
-# TradingView libraries
-try:
-    from tradingview_ta import get_multiple_analysis
-    TRADINGVIEW_TA_AVAILABLE = True
-except ImportError:
-    TRADINGVIEW_TA_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
@@ -147,67 +144,11 @@ mcp = create_mcp_server()
 
 
 # =============================================================================
-# Helper Functions
-# =============================================================================
-
-def _fetch_analysis(exchange: str, timeframe: str, limit: int = 50):
-    """Fetch analysis data for an exchange."""
-    if not TRADINGVIEW_TA_AVAILABLE:
-        raise RuntimeError("tradingview_ta is not available")
-
-    symbols = load_symbols(exchange)
-    if not symbols:
-        return []
-
-    symbols = symbols[:limit * 2]
-    screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-
-    try:
-        analysis = get_multiple_analysis(
-            screener=screener,
-            interval=timeframe,
-            symbols=symbols
-        )
-    except Exception as e:
-        raise RuntimeError(f"Analysis failed: {str(e)}")
-
-    rows = []
-    for key, value in analysis.items():
-        if value is None:
-            continue
-
-        try:
-            indicators = value.indicators
-            metrics = compute_metrics(indicators)
-
-            if not metrics or metrics.get('bbw') is None:
-                continue
-
-            rows.append({
-                "symbol": key,
-                "changePercent": metrics['change'],
-                "price": metrics['price'],
-                "bbw": metrics['bbw'],
-                "rating": metrics['rating'],
-                "signal": metrics['signal'],
-                "indicators": {
-                    "RSI": indicators.get("RSI"),
-                    "EMA50": indicators.get("EMA50"),
-                    "volume": indicators.get("volume"),
-                }
-            })
-        except (TypeError, KeyError):
-            continue
-
-    return rows
-
-
-# =============================================================================
-# MCP Tools
+# MCP Tools - Using shared implementation
 # =============================================================================
 
 @mcp.tool()
-def top_gainers(exchange: str = "kucoin", timeframe: str = "15m", limit: int = 25) -> list[dict]:
+def top_gainers(exchange: str = "kucoin", timeframe: str = "15m", limit: int = 25) -> dict:
     """
     Get top gaining assets on an exchange.
 
@@ -217,20 +158,18 @@ def top_gainers(exchange: str = "kucoin", timeframe: str = "15m", limit: int = 2
         limit: Number of results (max 50)
 
     Returns:
-        List of top gainers with price, change %, and indicators
+        Dictionary with 'data' list and optional 'warning' for partial failures
     """
-    exchange = sanitize_exchange(exchange)
-    timeframe = sanitize_timeframe(timeframe)
-    limit = max(1, min(limit, 50))
-
-    rows = _fetch_analysis(exchange, timeframe, limit)
-    rows.sort(key=lambda x: x["changePercent"], reverse=True)
-
-    return rows[:limit]
+    data, warning = get_top_gainers(exchange, timeframe, limit)
+    result = {"data": data}
+    if warning:
+        result["warning"] = warning
+        logger.warning(f"top_gainers: {warning}")
+    return result
 
 
 @mcp.tool()
-def top_losers(exchange: str = "kucoin", timeframe: str = "15m", limit: int = 25) -> list[dict]:
+def top_losers(exchange: str = "kucoin", timeframe: str = "15m", limit: int = 25) -> dict:
     """
     Get top losing assets on an exchange.
 
@@ -240,16 +179,14 @@ def top_losers(exchange: str = "kucoin", timeframe: str = "15m", limit: int = 25
         limit: Number of results (max 50)
 
     Returns:
-        List of top losers with price, change %, and indicators
+        Dictionary with 'data' list and optional 'warning' for partial failures
     """
-    exchange = sanitize_exchange(exchange)
-    timeframe = sanitize_timeframe(timeframe)
-    limit = max(1, min(limit, 50))
-
-    rows = _fetch_analysis(exchange, timeframe, limit)
-    rows.sort(key=lambda x: x["changePercent"])
-
-    return rows[:limit]
+    data, warning = get_top_losers(exchange, timeframe, limit)
+    result = {"data": data}
+    if warning:
+        result["warning"] = warning
+        logger.warning(f"top_losers: {warning}")
+    return result
 
 
 @mcp.tool()
@@ -258,7 +195,7 @@ def bollinger_scan(
     timeframe: str = "4h",
     bbw_threshold: float = 0.04,
     limit: int = 25
-) -> list[dict]:
+) -> dict:
     """
     Scan for assets with Bollinger Band squeeze (low BBW).
 
@@ -271,19 +208,14 @@ def bollinger_scan(
         limit: Number of results (max 50)
 
     Returns:
-        List of assets with tight Bollinger Bands
+        Dictionary with 'data' list and optional 'warning' for partial failures
     """
-    exchange = sanitize_exchange(exchange)
-    timeframe = sanitize_timeframe(timeframe, "4h")
-    limit = max(1, min(limit, 50))
-
-    rows = _fetch_analysis(exchange, timeframe, limit * 2)
-
-    # Filter by BBW threshold
-    filtered = [r for r in rows if r["bbw"] and r["bbw"] < bbw_threshold and r["bbw"] > 0]
-    filtered.sort(key=lambda x: x["bbw"])
-
-    return filtered[:limit]
+    data, warning = get_bollinger_scan(exchange, timeframe, bbw_threshold, limit)
+    result = {"data": data}
+    if warning:
+        result["warning"] = warning
+        logger.warning(f"bollinger_scan: {warning}")
+    return result
 
 
 @mcp.tool()
@@ -292,7 +224,7 @@ def rating_filter(
     timeframe: str = "15m",
     rating: int = 2,
     limit: int = 25
-) -> list[dict]:
+) -> dict:
     """
     Filter assets by Bollinger Band rating.
 
@@ -312,20 +244,14 @@ def rating_filter(
         limit: Number of results (max 50)
 
     Returns:
-        List of assets matching the rating
+        Dictionary with 'data' list and optional 'warning' for partial failures
     """
-    exchange = sanitize_exchange(exchange)
-    timeframe = sanitize_timeframe(timeframe)
-    rating = max(-3, min(3, rating))
-    limit = max(1, min(limit, 50))
-
-    rows = _fetch_analysis(exchange, timeframe, limit * 3)
-
-    # Filter by rating
-    filtered = [r for r in rows if r["rating"] == rating]
-    filtered.sort(key=lambda x: abs(x["changePercent"]), reverse=True)
-
-    return filtered[:limit]
+    data, warning = get_rating_filter(exchange, timeframe, rating, limit)
+    result = {"data": data}
+    if warning:
+        result["warning"] = warning
+        logger.warning(f"rating_filter: {warning}")
+    return result
 
 
 @mcp.tool()
@@ -345,85 +271,7 @@ def coin_analysis(
     Returns:
         Comprehensive analysis including price, Bollinger Bands, RSI, MACD, etc.
     """
-    if not TRADINGVIEW_TA_AVAILABLE:
-        return {"error": "TradingView TA library not available"}
-
-    exchange = sanitize_exchange(exchange)
-    timeframe = sanitize_timeframe(timeframe)
-
-    # Format symbol
-    if ":" not in symbol:
-        full_symbol = f"{exchange.upper()}:{symbol.upper()}"
-    else:
-        full_symbol = symbol.upper()
-
-    screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-
-    try:
-        analysis = get_multiple_analysis(
-            screener=screener,
-            interval=timeframe,
-            symbols=[full_symbol]
-        )
-
-        if full_symbol not in analysis or analysis[full_symbol] is None:
-            return {
-                "error": f"No data found for {symbol}",
-                "symbol": symbol,
-                "exchange": exchange
-            }
-
-        data = analysis[full_symbol]
-        indicators = data.indicators
-        metrics = compute_metrics(indicators)
-
-        if not metrics:
-            return {"error": f"Could not compute metrics for {symbol}"}
-
-        # Build comprehensive response
-        return {
-            "symbol": full_symbol,
-            "exchange": exchange,
-            "timeframe": timeframe,
-            "price_data": {
-                "current_price": metrics['price'],
-                "change_percent": metrics['change'],
-                "open": indicators.get("open"),
-                "high": indicators.get("high"),
-                "low": indicators.get("low"),
-                "close": indicators.get("close"),
-                "volume": indicators.get("volume"),
-            },
-            "bollinger_analysis": {
-                "rating": metrics['rating'],
-                "signal": metrics['signal'],
-                "bbw": metrics['bbw'],
-                "volatility": "High" if metrics['bbw'] > BBW_HIGH_VOLATILITY else
-                             "Medium" if metrics['bbw'] > BBW_MEDIUM_VOLATILITY else "Low",
-            },
-            "technical_indicators": {
-                "rsi": round(indicators.get("RSI", 0), 2),
-                "rsi_signal": "Overbought" if indicators.get("RSI", 0) > RSI_OVERBOUGHT else
-                             "Oversold" if indicators.get("RSI", 0) < RSI_OVERSOLD else "Neutral",
-                "ema9": indicators.get("EMA9"),
-                "ema21": indicators.get("EMA21"),
-                "ema50": indicators.get("EMA50"),
-                "atr": indicators.get("ATR"),
-                "adx": round(indicators.get("ADX", 0), 2),
-                "trend_strength": "Strong" if indicators.get("ADX", 0) > ADX_STRONG_TREND else "Weak",
-            },
-            "market_sentiment": {
-                "momentum": "Bullish" if metrics['change'] > 0 else "Bearish",
-                "overall_signal": metrics['signal'],
-            }
-        }
-
-    except Exception as e:
-        return {
-            "error": f"Analysis failed: {str(e)}",
-            "symbol": symbol,
-            "exchange": exchange
-        }
+    return get_coin_analysis(symbol, exchange, timeframe)
 
 
 @mcp.tool()
@@ -434,20 +282,7 @@ def list_exchanges() -> dict:
     Returns:
         Dictionary of exchanges grouped by market type
     """
-    exchanges_by_type = {}
-    for exchange, screener in EXCHANGE_SCREENER.items():
-        if screener not in exchanges_by_type:
-            exchanges_by_type[screener] = []
-        exchanges_by_type[screener].append(exchange)
-
-    return {
-        "crypto": exchanges_by_type.get("crypto", []),
-        "us_stocks": exchanges_by_type.get("america", []),
-        "turkey": exchanges_by_type.get("turkey", []),
-        "malaysia": exchanges_by_type.get("malaysia", []),
-        "hongkong": exchanges_by_type.get("hongkong", []),
-        "timeframes": ["5m", "15m", "1h", "4h", "1D", "1W", "1M"],
-    }
+    return get_exchanges_list()
 
 
 # =============================================================================

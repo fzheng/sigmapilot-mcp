@@ -10,6 +10,7 @@ allowing it to be used directly with FastMCP for authentication.
 
 from __future__ import annotations
 
+import logging
 import os
 import asyncio
 from typing import Optional, List
@@ -17,6 +18,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 # MCP AccessToken for compatibility with FastMCP
 from mcp.server.auth.provider import AccessToken
+
+# Configure module logger
+logger = logging.getLogger(__name__)
 
 # JWT verification dependencies
 try:
@@ -122,11 +126,12 @@ class Auth0TokenVerifier:
 
         except InvalidTokenError as e:
             # Token validation failed (expired, wrong signature, etc.)
-            print(f"Token validation failed: {e}")
+            # Log at debug level to avoid exposing token details in production logs
+            logger.debug(f"Token validation failed: {type(e).__name__}")
             return None
         except Exception as e:
             # Unexpected error during verification
-            print(f"Token verification error: {e}")
+            logger.warning(f"Token verification error: {type(e).__name__}")
             return None
 
     def verify_token_sync(self, token: str) -> Optional[AccessToken]:
@@ -178,11 +183,27 @@ class Auth0TokenVerifier:
             )
 
         except InvalidTokenError as e:
-            print(f"Token validation failed: {e}")
+            # Log at debug level to avoid exposing token details in production logs
+            logger.debug(f"Token validation failed: {type(e).__name__}")
             return None
         except Exception as e:
-            print(f"Token verification error: {e}")
+            logger.warning(f"Token verification error: {type(e).__name__}")
             return None
+
+    def close(self) -> None:
+        """
+        Clean up resources used by the verifier.
+
+        Should be called when the verifier is no longer needed to prevent
+        resource leaks from the thread pool executor.
+        """
+        if self._executor:
+            self._executor.shutdown(wait=False)
+            self._executor = None
+
+    def __del__(self):
+        """Destructor to ensure executor cleanup."""
+        self.close()
 
 
 def create_auth0_verifier() -> Auth0TokenVerifier:

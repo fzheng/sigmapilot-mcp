@@ -14,7 +14,7 @@ Tests cover:
 - Hull MA and VWMA
 - Parabolic SAR
 - Additional SMA/EMA periods
-- New scanner tools: pivot_points_scanner, recommendation_scanner
+- Scanner tools: pivot_points_scanner, tradingview_recommendation
 """
 
 import pytest

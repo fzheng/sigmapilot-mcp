@@ -134,9 +134,7 @@ For local development or direct Claude Desktop connection (stdio mode).
 
 3. **Restart Claude Desktop**
 
-## Available Tools
-
-### Remote Server (main.py)
+## Available Tools (10 Total)
 
 | Tool | Description |
 |------|-------------|
@@ -145,19 +143,11 @@ For local development or direct Claude Desktop connection (stdio mode).
 | `bollinger_scan` | Find assets with Bollinger Band squeeze |
 | `rating_filter` | Filter by BB rating (-3 to +3) |
 | `coin_analysis` | Complete technical analysis for a symbol |
-| `list_exchanges` | List all supported exchanges |
-
-### Local Server (server.py) - Additional Tools
-
-| Tool | Description |
-|------|-------------|
-| `consecutive_candles_scan` | Detect bullish/bearish candle patterns |
-| `advanced_candle_pattern` | Advanced pattern recognition with scoring |
-| `volume_breakout_scanner` | Find high-volume price breakouts |
-| `volume_confirmation_analysis` | Analyze volume confirmation for a symbol |
-| `smart_volume_scanner` | Intelligent volume-based scanning |
+| `candle_pattern_scanner` | Detect bullish/bearish patterns (consecutive & advanced modes) |
+| `volume_scanner` | Volume breakout detection with RSI filtering (breakout & smart modes) |
+| `volume_analysis` | Detailed volume confirmation analysis for a symbol |
 | `pivot_points_scanner` | Find coins near pivot point levels (Classic/Fibonacci/Camarilla) |
-| `recommendation_scanner` | Scan by Buy/Sell recommendations |
+| `tradingview_recommendation` | Scan by TradingView Buy/Sell signals |
 
 ## Bollinger Band Rating System
 
@@ -192,19 +182,39 @@ uv sync
 # Run tests
 make test
 
-# Run locally (stdio mode)
+# Run locally (stdio mode for Claude Desktop)
 uv run python src/sigmapilot_mcp/server.py
 
-# Run as remote server (HTTP mode with optional auth)
-uv run python main.py
+# Run as HTTP server (development mode, no auth)
+uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000
+
+# Run as HTTP server with Auth0 authentication
+AUTH0_DOMAIN=your-tenant.auth0.com AUTH0_AUDIENCE=https://your-api \
+  uv run python src/sigmapilot_mcp/server.py streamable-http --auth
 ```
 
 ## Architecture
 
+The server supports two modes:
+
+### stdio Mode (Claude Desktop)
+```
+┌─────────────────┐      stdio       ┌─────────────────┐
+│ Claude Desktop  │ ◄──────────────► │   server.py     │
+└─────────────────┘                  └────────┬────────┘
+                                              │
+                                              ▼
+                                     ┌─────────────────┐
+                                     │  TradingView    │
+                                     │  Market APIs    │
+                                     └─────────────────┘
+```
+
+### HTTP Mode (Remote/Railway)
 ```
 ┌─────────────────┐      HTTPS       ┌─────────────────┐
-│   Claude.ai     │ ───────────────► │  Railway Server │
-│   ChatGPT       │  + OAuth Token   │  (main.py)      │
+│   Claude.ai     │ ───────────────► │ Railway Server  │
+│   ChatGPT       │  + OAuth Token   │  (server.py)    │
 │   AI Platforms  │                  └────────┬────────┘
 └─────────────────┘                           │
                                               ▼
@@ -215,8 +225,8 @@ uv run python main.py
                                               │
                                               ▼
                                      ┌─────────────────┐
-                                     │  Market Data    │
-                                     │  Public APIs    │
+                                     │  TradingView    │
+                                     │  Market APIs    │
                                      └─────────────────┘
 ```
 

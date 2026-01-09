@@ -115,7 +115,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
 ```
 ┌─────────────────┐      HTTPS       ┌─────────────────┐
 │   Claude.ai     │ ───────────────► │  Railway Server │
-│   ChatGPT       │  + OAuth Token   │  (main.py)      │
+│   ChatGPT       │  + OAuth Token   │  (server.py)    │
 │   AI Platforms  │                  └────────┬────────┘
 └─────────────────┘                           │
                                               ▼
@@ -126,8 +126,8 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
                                               │
                                               ▼
                                      ┌─────────────────┐
-                                     │  Market Data    │
-                                     │  Public APIs    │
+                                     │  TradingView    │
+                                     │  Market APIs    │
                                      └─────────────────┘
 ```
 
@@ -172,8 +172,12 @@ Add to your Claude Desktop config (`claude_desktop_config.json`):
 For local testing without Auth0:
 
 ```bash
-# No Auth0 vars = auth disabled
-uv run python main.py
+# HTTP mode without auth (development)
+uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000
+
+# HTTP mode with auth (requires AUTH0_DOMAIN and AUTH0_AUDIENCE)
+AUTH0_DOMAIN=your-tenant.auth0.com AUTH0_AUDIENCE=https://your-api \
+  uv run python src/sigmapilot_mcp/server.py streamable-http --auth
 ```
 
-The server will run at `http://localhost:8000/mcp` without authentication.
+The server will run at `http://localhost:8000/mcp` without authentication in development mode.

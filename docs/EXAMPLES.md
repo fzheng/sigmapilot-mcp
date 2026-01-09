@@ -133,7 +133,7 @@ Bitcoin Multi-Timeframe Analysis:
 ```
 You: "Find coins showing consecutive bullish candle patterns"
 
-Claude: [Uses: consecutive_candles_scan(pattern_type="bullish", timeframe="1h")]
+Claude: [Uses: candle_pattern_scanner(mode="consecutive", pattern_type="bullish", timeframe="1h")]
 
 Consecutive Bullish Patterns Found:
 

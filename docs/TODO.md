@@ -19,9 +19,12 @@ This document tracks development tasks, improvements, and known issues.
 - [x] Added additional SMA periods (5, 10, 30, 50, 100, 200)
 - [x] Added additional EMA periods (5, 10, 30, 100)
 - [x] Created `pivot_points_scanner` MCP tool
-- [x] Created `recommendation_scanner` MCP tool
+- [x] Created `tradingview_recommendation` MCP tool
 - [x] Comprehensive tests for all new indicators (45 new tests, 223 total)
 - [x] Renamed project from tradingview-mcp to sigmapilot-mcp
+- [x] Unified server architecture (merged main.py into server.py)
+- [x] Consolidated tools: candle_pattern_scanner, volume_scanner, volume_analysis
+- [x] Added health check endpoints for HTTP mode
 
 ### v1.1.0
 - [x] Updated documentation for multi-platform MCP support (Claude.ai Connectors, ChatGPT, etc.)
@@ -60,7 +63,6 @@ This document tracks development tasks, improvements, and known issues.
 
 ### Code Organization
 - [ ] Break down large functions (e.g., `coin_analysis` is 137 lines)
-- [ ] Consider separating MCP tools into a dedicated module
 - [ ] Add type hints to remaining untyped functions
 
 ### Performance

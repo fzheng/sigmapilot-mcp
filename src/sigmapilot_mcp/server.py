@@ -1,37 +1,89 @@
 """
-SigmaPilot MCP Server - Local Entry Point (stdio mode).
+SigmaPilot MCP Server - Unified Entry Point.
 
 This module provides the main MCP server implementation for cryptocurrency and
 stock market analysis. It offers tools for market screening, technical analysis,
 and pattern detection.
 
+The server supports both local (stdio) and remote (HTTP with Auth0) modes.
+
 Features:
     - Top gainers/losers screening by exchange and timeframe
     - Bollinger Band analysis and squeeze detection
-    - Consecutive candle pattern detection
-    - Volume breakout scanning
+    - Candle pattern scanning (consecutive and advanced patterns)
+    - Volume analysis (breakout detection and smart scanning)
     - Single coin detailed analysis
+    - TradingView recommendation signals
+    - Pivot point analysis
+
+Tools (10 total):
+    1. top_gainers - Top gaining assets
+    2. top_losers - Top losing assets
+    3. bollinger_scan - Bollinger Band squeeze detection
+    4. rating_filter - Filter by BB rating
+    5. coin_analysis - Detailed single-symbol analysis
+    6. candle_pattern_scanner - Candle pattern detection
+    7. volume_scanner - Volume breakout and smart scanning
+    8. volume_analysis - Single-symbol volume confirmation
+    9. pivot_points_scanner - Pivot point level analysis
+    10. tradingview_recommendation - TradingView signals
 
 Usage:
     # Run as stdio server (for Claude Desktop)
     uv run python src/sigmapilot_mcp/server.py
 
-    # Run as HTTP server
+    # Run as HTTP server (local development)
     uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000
+
+    # Run as HTTP server with Auth0 (production)
+    AUTH0_DOMAIN=your-tenant.auth0.com AUTH0_AUDIENCE=https://api.example.com \
+        uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000
 
 Environment Variables:
     DEBUG_MCP: Enable debug logging (set to any value)
-    HOST: Server host for HTTP mode (default: 127.0.0.1)
+    HOST: Server host for HTTP mode (default: 0.0.0.0)
     PORT: Server port for HTTP mode (default: 8000)
+    AUTH0_DOMAIN: Auth0 tenant domain (enables authentication)
+    AUTH0_AUDIENCE: Auth0 API audience identifier
+    RESOURCE_SERVER_URL: Public URL for OAuth resource server
 """
 
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import Any, Dict, List, Optional
 from typing_extensions import TypedDict
 from mcp.server.fastmcp import FastMCP
+from pydantic import AnyHttpUrl
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Auth0 authentication (optional)
+try:
+    from mcp.server.auth.settings import AuthSettings
+    from sigmapilot_mcp.core.utils.auth import create_auth0_verifier, Auth0TokenVerifier
+    AUTH0_AVAILABLE = True
+except ImportError:
+    AUTH0_AVAILABLE = False
+    AuthSettings = None
+    Auth0TokenVerifier = None
+
+# Starlette for custom routes (optional, for HTTP mode)
+try:
+    from starlette.responses import JSONResponse
+    from starlette.requests import Request
+    STARLETTE_AVAILABLE = True
+except ImportError:
+    STARLETTE_AVAILABLE = False
+    JSONResponse = None
+    Request = None
 
 # Import core analysis modules
 from sigmapilot_mcp.core.services.indicators import compute_metrics
@@ -70,13 +122,8 @@ try:
 except ImportError:
     TRADINGVIEW_TA_AVAILABLE = False
 
-try:
-    from tradingview_screener import Query
-    from tradingview_screener.column import Column
-    TRADINGVIEW_SCREENER_AVAILABLE = True
-except ImportError:
-    TRADINGVIEW_SCREENER_AVAILABLE = False
-
+# Note: tradingview_screener (Query, Column) is imported locally in functions
+# that use it, with their own error handling
 
 # =============================================================================
 # Type Definitions
@@ -398,12 +445,89 @@ def _fetch_multi_changes(exchange: str, timeframes: List[str] | None, base_timef
 
 
 # =============================================================================
-# MCP Server Initialization
+# MCP Server Configuration
 # =============================================================================
 
+# Server instructions for AI assistants
+SERVER_INSTRUCTIONS = """
+SigmaPilot MCP Server - Real-time Cryptocurrency and Stock Market Analysis
+
+This server provides AI-powered technical analysis tools for market intelligence.
+
+Available Tools:
+- top_gainers: Find best performing assets on an exchange
+- top_losers: Find worst performing assets on an exchange
+- bollinger_scan: Detect Bollinger Band squeeze patterns
+- rating_filter: Filter by Bollinger Band rating (-3 to +3)
+- coin_analysis: Complete technical analysis for a symbol
+- candle_pattern_scanner: Detect bullish/bearish candle patterns
+- volume_scanner: Volume breakout detection with RSI filtering
+- volume_analysis: Detailed volume analysis for a symbol
+- pivot_points_scanner: Find coins near pivot point levels
+- tradingview_recommendation: TradingView buy/sell recommendations
+
+Supported Exchanges:
+- Crypto: KuCoin, Binance, Bybit, Bitget, OKX, Coinbase, Gate.io, Huobi, Bitfinex
+- Stocks: NASDAQ, NYSE, BIST (Turkey), HKEX (Hong Kong), Bursa (Malaysia)
+
+Timeframes: 5m, 15m, 1h, 4h, 1D, 1W, 1M
+"""
+
+# Configuration from environment
+AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", "")
+AUTH0_AUDIENCE = os.environ.get("AUTH0_AUDIENCE", "")
+RESOURCE_SERVER_URL = os.environ.get("RESOURCE_SERVER_URL", "http://localhost:8000/mcp")
+
+# Global token verifier (set when auth is enabled)
+_token_verifier: Optional[Any] = None
+
+
+def create_mcp_server(enable_auth: bool = False) -> FastMCP:
+    """
+    Create and configure the MCP server with optional Auth0 authentication.
+
+    Args:
+        enable_auth: Enable Auth0 authentication (requires environment variables)
+
+    Returns:
+        Configured FastMCP server instance
+    """
+    global _token_verifier
+
+    auth_settings = None
+    token_verifier = None
+
+    # Setup Auth0 if requested and available
+    if enable_auth and AUTH0_AVAILABLE and AUTH0_DOMAIN and AUTH0_AUDIENCE:
+        try:
+            _token_verifier = create_auth0_verifier()
+            token_verifier = _token_verifier
+            auth_settings = AuthSettings(
+                issuer_url=AnyHttpUrl(f"https://{AUTH0_DOMAIN}/"),
+                resource_server_url=AnyHttpUrl(RESOURCE_SERVER_URL),
+                required_scopes=["openid", "profile", "email"],
+            )
+            logger.info(f"Auth0 authentication enabled for domain: {AUTH0_DOMAIN}")
+        except ValueError as e:
+            logger.warning(f"Auth0 configuration error: {e}. Running without auth.")
+        except Exception as e:
+            logger.warning(f"Auth0 setup failed: {e}. Running without auth.")
+
+    # Create the FastMCP server
+    server = FastMCP(
+        name="SigmaPilot Screener",
+        instructions=SERVER_INSTRUCTIONS,
+        token_verifier=token_verifier,
+        auth=auth_settings,
+    )
+
+    return server
+
+
+# Create the default MCP server instance (auth configured at runtime in main())
 mcp = FastMCP(
-	name="SigmaPilot Screener",
-	instructions=("AI-powered market screener with comprehensive technical analysis. Tools: top_gainers, top_losers, multi_changes."),
+    name="SigmaPilot Screener",
+    instructions=SERVER_INSTRUCTIONS,
 )
 
 
@@ -905,34 +1029,41 @@ def coin_analysis(
 # =============================================================================
 
 @mcp.tool()
-def consecutive_candles_scan(
+def candle_pattern_scanner(
     exchange: str = "KUCOIN",
     timeframe: str = "15m",
+    mode: str = "consecutive",
     pattern_type: str = "bullish",
-    candle_count: int = 3,
-    min_growth: float = 2.0,
+    min_change: float = 2.0,
     limit: int = 20
 ) -> dict:
-    """Scan for coins with consecutive growing/shrinking candles pattern.
-    
+    """Scan for candle patterns including consecutive candles and advanced patterns.
+
+    Combines consecutive candle detection and advanced pattern analysis into a
+    single unified tool. Use the 'mode' parameter to select analysis type.
+
     Args:
-        exchange: Exchange name (BINANCE, KUCOIN, etc.)
-        timeframe: Time interval (5m, 15m, 1h, 4h)
-        pattern_type: "bullish" (growing candles) or "bearish" (shrinking candles)
-        candle_count: Number of consecutive candles to check (2-5)
-        min_growth: Minimum growth percentage for each candle
-        limit: Maximum number of results to return
-    
+        exchange: Exchange name (BINANCE, KUCOIN, BYBIT, etc.)
+        timeframe: Time interval (5m, 15m, 1h, 4h, 1D)
+        mode: Analysis mode:
+            - "consecutive": Detect consecutive bullish/bearish candles
+            - "advanced": Advanced multi-timeframe pattern scoring
+        pattern_type: For consecutive mode - "bullish" or "bearish"
+        min_change: Minimum price change % for pattern detection (default 2.0)
+        limit: Maximum number of results (max 50)
+
     Returns:
-        List of coins with consecutive candle patterns
+        Dictionary with pattern results including:
+        - exchange, timeframe, mode settings
+        - total_found: Number of patterns detected
+        - data: List of coins with pattern details
     """
     try:
         exchange = sanitize_exchange(exchange, "KUCOIN")
         timeframe = sanitize_timeframe(timeframe, "15m")
-        candle_count = max(2, min(5, candle_count))
-        min_growth = max(0.5, min(20.0, min_growth))
+        min_change = max(0.5, min(20.0, min_change))
         limit = max(1, min(50, limit))
-        
+
         # Get symbols for the exchange
         symbols = load_symbols(exchange)
         if not symbols:
@@ -941,275 +1072,237 @@ def consecutive_candles_scan(
                 "exchange": exchange,
                 "timeframe": timeframe
             }
-        
-        # Limit symbols for performance (we need historical data)
+
+        # Limit symbols for performance
         symbols = symbols[:min(limit * 3, 200)]
-        
-        # We need to get data from multiple timeframes to analyze candle progression
-        # For now, we'll use current timeframe data and simulate pattern detection
         screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-        
+
         try:
             analysis = get_multiple_analysis(
                 screener=screener,
                 interval=timeframe,
                 symbols=symbols
             )
-            
-            pattern_coins = []
-            
-            for symbol, data in analysis.items():
-                if data is None:
-                    continue
-                    
-                try:
-                    indicators = data.indicators
-                    
-                    # Calculate current candle metrics
-                    open_price = indicators.get("open")
-                    close_price = indicators.get("close")
-                    high_price = indicators.get("high") 
-                    low_price = indicators.get("low")
-                    volume = indicators.get("volume", 0)
-                    
-                    if not all([open_price, close_price, high_price, low_price]):
-                        continue
-                    
-                    # Calculate current candle body size and change
-                    current_change = ((close_price - open_price) / open_price) * 100
-                    candle_body = abs(close_price - open_price)
-                    candle_range = high_price - low_price
-                    body_to_range_ratio = candle_body / candle_range if candle_range > 0 else 0
-                    
-                    # For consecutive pattern, we'll use available indicators to simulate
-                    # In a real implementation, we'd need historical OHLC data
-                    
-                    # Use RSI and price momentum as proxy for consecutive pattern
-                    rsi = indicators.get("RSI", 50)
-                    sma20 = indicators.get("SMA20", close_price)
-                    ema50 = indicators.get("EMA50", close_price)
-                    
-                    # Calculate momentum indicators
-                    price_above_sma = close_price > sma20
-                    price_above_ema = close_price > ema50
-                    strong_momentum = abs(current_change) >= min_growth
-                    
-                    # Pattern detection logic
-                    pattern_detected = False
-                    pattern_strength = 0
-                    
-                    if pattern_type == "bullish":
-                        # Bullish pattern: price rising, good momentum, strong candle body
-                        conditions = [
-                            current_change > min_growth,  # Current candle is bullish
-                            body_to_range_ratio > 0.6,    # Strong candle body
-                            price_above_sma,              # Above short MA
-                            rsi > 45 and rsi < 80,        # RSI in momentum range
-                            volume > 1000                 # Decent volume
-                        ]
-                        
-                        pattern_strength = sum(conditions)
-                        pattern_detected = pattern_strength >= 3
-                        
-                    elif pattern_type == "bearish":
-                        # Bearish pattern: price falling, bearish momentum
-                        conditions = [
-                            current_change < -min_growth,  # Current candle is bearish
-                            body_to_range_ratio > 0.6,     # Strong candle body
-                            not price_above_sma,           # Below short MA
-                            rsi < 55 and rsi > 20,         # RSI in bearish range
-                            volume > 1000                  # Decent volume
-                        ]
-                        
-                        pattern_strength = sum(conditions)
-                        pattern_detected = pattern_strength >= 3
-                    
-                    if pattern_detected:
-                        # Calculate additional metrics
-                        metrics = compute_metrics(indicators)
-                        
-                        coin_data = {
-                            "symbol": symbol,
-                            "price": round(close_price, 6),
-                            "current_change": round(current_change, 3),
-                            "candle_body_ratio": round(body_to_range_ratio, 3),
-                            "pattern_strength": pattern_strength,
-                            "volume": volume,
-                            "bollinger_rating": metrics.get('rating', 0) if metrics else 0,
-                            "rsi": round(rsi, 2),
-                            "price_levels": {
-                                "open": round(open_price, 6),
-                                "high": round(high_price, 6), 
-                                "low": round(low_price, 6),
-                                "close": round(close_price, 6)
-                            },
-                            "momentum_signals": {
-                                "above_sma20": price_above_sma,
-                                "above_ema50": price_above_ema,
-                                "strong_volume": volume > 5000
-                            }
-                        }
-                        
-                        pattern_coins.append(coin_data)
-                        
-                except Exception as e:
-                    continue
-            
-            # Sort by pattern strength and current change
-            if pattern_type == "bullish":
-                pattern_coins.sort(key=lambda x: (x['pattern_strength'], x['current_change']), reverse=True)
-            else:
-                pattern_coins.sort(key=lambda x: (x['pattern_strength'], -x['current_change']), reverse=True)
-            
-            return {
-                "exchange": exchange,
-                "timeframe": timeframe,
-                "pattern_type": pattern_type,
-                "candle_count": candle_count,
-                "min_growth": min_growth,
-                "total_found": len(pattern_coins),
-                "data": pattern_coins[:limit]
-            }
-            
         except Exception as e:
             return {
-                "error": f"Pattern analysis failed: {str(e)}",
+                "error": f"TradingView API error: {str(e)}",
                 "exchange": exchange,
                 "timeframe": timeframe
             }
-            
+
+        if mode == "advanced":
+            # Advanced pattern analysis with scoring
+            return _scan_advanced_patterns(
+                analysis, exchange, timeframe, min_change, limit
+            )
+        else:
+            # Default: Consecutive candle pattern detection
+            return _scan_consecutive_patterns(
+                analysis, exchange, timeframe, pattern_type, min_change, limit
+            )
+
     except Exception as e:
         return {
-            "error": f"Consecutive candles scan failed: {str(e)}",
+            "error": f"Candle pattern scan failed: {str(e)}",
             "exchange": exchange,
             "timeframe": timeframe
         }
 
-@mcp.tool()
-def advanced_candle_pattern(
-    exchange: str = "KUCOIN",
-    base_timeframe: str = "15m",
-    pattern_length: int = 3,
-    min_size_increase: float = 10.0,
-    limit: int = 15
+
+def _scan_consecutive_patterns(
+    analysis: dict,
+    exchange: str,
+    timeframe: str,
+    pattern_type: str,
+    min_change: float,
+    limit: int
 ) -> dict:
-    """Advanced candle pattern analysis using multi-timeframe data.
-    
-    Args:
-        exchange: Exchange name (BINANCE, KUCOIN, etc.)
-        base_timeframe: Base timeframe for analysis (5m, 15m, 1h, 4h)
-        pattern_length: Number of consecutive periods to analyze (2-4)
-        min_size_increase: Minimum percentage increase in candle size
-        limit: Maximum number of results to return
-    
-    Returns:
-        Coins with progressive candle size increase patterns
     """
-    try:
-        exchange = sanitize_exchange(exchange, "KUCOIN")
-        base_timeframe = sanitize_timeframe(base_timeframe, "15m")
-        pattern_length = max(2, min(4, pattern_length))
-        min_size_increase = max(5.0, min(50.0, min_size_increase))
-        limit = max(1, min(30, limit))
-        
-        # Get symbols
-        symbols = load_symbols(exchange)
-        if not symbols:
-            return {
-                "error": f"No symbols found for exchange: {exchange}",
-                "exchange": exchange
-            }
-        
-        # Limit for performance
-        symbols = symbols[:min(limit * 2, 100)]
-        
-        # Use tradingview-screener for multi-timeframe data if available
-        if TRADINGVIEW_SCREENER_AVAILABLE:
-            try:
-                # Get multiple timeframe data using screener
-                results = _fetch_multi_timeframe_patterns(
-                    exchange, symbols, base_timeframe, pattern_length, min_size_increase
-                )
-                
-                return {
-                    "exchange": exchange,
-                    "base_timeframe": base_timeframe,
-                    "pattern_length": pattern_length,
-                    "min_size_increase": min_size_increase,
-                    "method": "multi-timeframe",
-                    "total_found": len(results),
-                    "data": results[:limit]
-                }
-                
-            except Exception as e:
-                # Fallback to single timeframe analysis
-                pass
-        
-        # Fallback: Use single timeframe with enhanced pattern detection
-        screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-        
-        analysis = get_multiple_analysis(
-            screener=screener,
-            interval=base_timeframe,
-            symbols=symbols
-        )
-        
-        pattern_results = []
-        
-        for symbol, data in analysis.items():
-            if data is None:
+    Scan for consecutive bullish/bearish candle patterns.
+
+    Analyzes current candle characteristics along with technical indicators
+    to identify symbols showing strong momentum patterns.
+
+    Args:
+        analysis: TradingView analysis results dictionary
+        exchange: Exchange name
+        timeframe: Analysis timeframe
+        pattern_type: "bullish" or "bearish"
+        min_change: Minimum price change threshold
+        limit: Maximum results to return
+
+    Returns:
+        Dictionary with pattern results
+    """
+    pattern_coins = []
+
+    for symbol, data in analysis.items():
+        if data is None:
+            continue
+
+        try:
+            indicators = data.indicators
+
+            # Calculate current candle metrics
+            open_price = indicators.get("open")
+            close_price = indicators.get("close")
+            high_price = indicators.get("high")
+            low_price = indicators.get("low")
+            volume = indicators.get("volume", 0)
+
+            if not all([open_price, close_price, high_price, low_price]):
                 continue
-                
-            try:
-                indicators = data.indicators
-                
-                # Enhanced pattern detection using available indicators
-                pattern_score = _calculate_candle_pattern_score(
-                    indicators, pattern_length, min_size_increase
-                )
-                
-                if pattern_score['detected']:
-                    metrics = compute_metrics(indicators)
-                    
-                    result = {
-                        "symbol": symbol,
-                        "pattern_score": pattern_score['score'],
-                        "pattern_details": pattern_score['details'],
-                        "current_price": pattern_score['price'],
-                        "total_change": pattern_score['total_change'],
-                        "volume": indicators.get("volume", 0),
-                        "bollinger_rating": metrics.get('rating', 0) if metrics else 0,
-                        "technical_strength": {
-                            "rsi": round(indicators.get("RSI", 50), 2),
-                            "momentum": "Strong" if abs(pattern_score['total_change']) > min_size_increase else "Moderate",
-                            "volume_trend": "High" if indicators.get("volume", 0) > 10000 else "Low"
-                        }
+
+            # Calculate candle metrics
+            current_change = ((close_price - open_price) / open_price) * 100
+            candle_body = abs(close_price - open_price)
+            candle_range = high_price - low_price
+            body_to_range_ratio = candle_body / candle_range if candle_range > 0 else 0
+
+            # Get momentum indicators
+            rsi = indicators.get("RSI", 50)
+            sma20 = indicators.get("SMA20", close_price)
+            ema50 = indicators.get("EMA50", close_price)
+            price_above_sma = close_price > sma20
+            price_above_ema = close_price > ema50
+
+            # Pattern detection logic
+            pattern_detected = False
+            pattern_strength = 0
+
+            if pattern_type == "bullish":
+                conditions = [
+                    current_change > min_change,
+                    body_to_range_ratio > 0.6,
+                    price_above_sma,
+                    rsi > 45 and rsi < 80,
+                    volume > 1000
+                ]
+                pattern_strength = sum(conditions)
+                pattern_detected = pattern_strength >= 3
+
+            elif pattern_type == "bearish":
+                conditions = [
+                    current_change < -min_change,
+                    body_to_range_ratio > 0.6,
+                    not price_above_sma,
+                    rsi < 55 and rsi > 20,
+                    volume > 1000
+                ]
+                pattern_strength = sum(conditions)
+                pattern_detected = pattern_strength >= 3
+
+            if pattern_detected:
+                metrics = compute_metrics(indicators)
+
+                pattern_coins.append({
+                    "symbol": symbol,
+                    "price": round(close_price, 6),
+                    "change_percent": round(current_change, 3),
+                    "body_ratio": round(body_to_range_ratio, 3),
+                    "pattern_strength": pattern_strength,
+                    "volume": volume,
+                    "bollinger_rating": metrics.get('rating', 0) if metrics else 0,
+                    "rsi": round(rsi, 2),
+                    "price_levels": {
+                        "open": round(open_price, 6),
+                        "high": round(high_price, 6),
+                        "low": round(low_price, 6),
+                        "close": round(close_price, 6)
+                    },
+                    "momentum": {
+                        "above_sma20": price_above_sma,
+                        "above_ema50": price_above_ema,
+                        "strong_volume": volume > 5000
                     }
-                    
-                    pattern_results.append(result)
-                    
-            except Exception as e:
-                continue
-        
-        # Sort by pattern score and total change
-        pattern_results.sort(key=lambda x: (x['pattern_score'], abs(x['total_change'])), reverse=True)
-        
-        return {
-            "exchange": exchange,
-            "base_timeframe": base_timeframe,
-            "pattern_length": pattern_length,
-            "min_size_increase": min_size_increase,
-            "method": "enhanced-single-timeframe",
-            "total_found": len(pattern_results),
-            "data": pattern_results[:limit]
-        }
-        
-    except Exception as e:
-        return {
-            "error": f"Advanced pattern analysis failed: {str(e)}",
-            "exchange": exchange,
-            "base_timeframe": base_timeframe
-        }
+                })
+
+        except Exception:
+            continue
+
+    # Sort by pattern strength and change
+    if pattern_type == "bullish":
+        pattern_coins.sort(key=lambda x: (x['pattern_strength'], x['change_percent']), reverse=True)
+    else:
+        pattern_coins.sort(key=lambda x: (x['pattern_strength'], -x['change_percent']), reverse=True)
+
+    return {
+        "exchange": exchange,
+        "timeframe": timeframe,
+        "mode": "consecutive",
+        "pattern_type": pattern_type,
+        "min_change": min_change,
+        "total_found": len(pattern_coins),
+        "data": pattern_coins[:limit]
+    }
+
+
+def _scan_advanced_patterns(
+    analysis: dict,
+    exchange: str,
+    timeframe: str,
+    min_change: float,
+    limit: int
+) -> dict:
+    """
+    Advanced pattern analysis with multi-factor scoring.
+
+    Uses candle body ratio, momentum, volume, and trend alignment to
+    score pattern strength.
+
+    Args:
+        analysis: TradingView analysis results dictionary
+        exchange: Exchange name
+        timeframe: Analysis timeframe
+        min_change: Minimum change threshold for strong momentum
+        limit: Maximum results to return
+
+    Returns:
+        Dictionary with scored pattern results
+    """
+    pattern_results = []
+
+    for symbol, data in analysis.items():
+        if data is None:
+            continue
+
+        try:
+            indicators = data.indicators
+            pattern_score = _calculate_candle_pattern_score(indicators, 3, min_change)
+
+            if pattern_score['detected']:
+                metrics = compute_metrics(indicators)
+
+                pattern_results.append({
+                    "symbol": symbol,
+                    "pattern_score": pattern_score['score'],
+                    "pattern_details": pattern_score['details'],
+                    "price": pattern_score['price'],
+                    "change_percent": pattern_score['total_change'],
+                    "body_ratio": pattern_score['body_ratio'],
+                    "volume": pattern_score['volume'],
+                    "bollinger_rating": metrics.get('rating', 0) if metrics else 0,
+                    "technical": {
+                        "rsi": round(indicators.get("RSI", 50), 2),
+                        "momentum": "Strong" if abs(pattern_score['total_change']) > min_change else "Moderate",
+                        "volume_level": "High" if pattern_score['volume'] > 10000 else "Normal"
+                    }
+                })
+
+        except Exception:
+            continue
+
+    # Sort by pattern score
+    pattern_results.sort(key=lambda x: (x['pattern_score'], abs(x['change_percent'])), reverse=True)
+
+    return {
+        "exchange": exchange,
+        "timeframe": timeframe,
+        "mode": "advanced",
+        "min_change": min_change,
+        "total_found": len(pattern_results),
+        "data": pattern_results[:limit]
+    }
 
 def _calculate_candle_pattern_score(indicators: dict, pattern_length: int, min_increase: float) -> dict:
     """
@@ -1437,112 +1530,145 @@ def exchanges_list() -> str:
 # =============================================================================
 
 @mcp.tool()
-def volume_breakout_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", volume_multiplier: float = 2.0, price_change_min: float = 3.0, limit: int = 25) -> list[dict]:
-	"""Detect coins with volume breakout + price breakout.
+def volume_scanner(
+    exchange: str = "KUCOIN",
+    timeframe: str = "15m",
+    mode: str = "breakout",
+    volume_multiplier: float = 2.0,
+    price_change_min: float = 3.0,
+    rsi_filter: str = "any",
+    limit: int = 25
+) -> list[dict]:
+    """Unified volume scanner combining breakout detection and smart filtering.
 
-	Identifies symbols where current volume significantly exceeds average volume
-	while also showing notable price movement - a potential breakout signal.
+    Scans for volume breakouts with optional RSI filtering. Use 'mode' to select
+    between basic breakout detection and smart filtering with recommendations.
 
-	Args:
-		exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
-		timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
-		volume_multiplier: How many times the volume should be above normal level (default 2.0)
-		price_change_min: Minimum price change percentage (default 3.0)
-		limit: Number of rows to return (max 50)
+    Args:
+        exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
+        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
+        mode: Scan mode:
+            - "breakout": Basic volume breakout detection
+            - "smart": Volume + RSI filtering with trading recommendations
+        volume_multiplier: Minimum volume ratio vs average (default 2.0)
+        price_change_min: Minimum price change percentage (default 3.0)
+        rsi_filter: RSI filter (for smart mode):
+            - "oversold": RSI < 30
+            - "overbought": RSI > 70
+            - "neutral": RSI 30-70
+            - "any": No RSI filter
+        limit: Number of rows to return (max 50)
 
-	Returns:
-		List of coins with volume breakout signals, sorted by volume strength
-	"""
-	exchange = sanitize_exchange(exchange, "KUCOIN")
-	timeframe = sanitize_timeframe(timeframe, "15m")
-	volume_multiplier = max(1.5, min(10.0, volume_multiplier))
-	price_change_min = max(1.0, min(20.0, price_change_min))
-	limit = max(1, min(limit, 50))
+    Returns:
+        List of coins with volume breakout signals, sorted by volume strength.
+        In smart mode, includes trading recommendations.
+    """
+    exchange = sanitize_exchange(exchange, "KUCOIN")
+    timeframe = sanitize_timeframe(timeframe, "15m")
+    volume_multiplier = max(1.5, min(10.0, volume_multiplier))
+    price_change_min = max(1.0, min(20.0, price_change_min))
+    limit = max(1, min(limit, 50))
 
-	# Get symbols
-	symbols = load_symbols(exchange)
-	if not symbols:
-		return []
+    # Get symbols
+    symbols = load_symbols(exchange)
+    if not symbols:
+        return []
 
-	screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-	volume_breakouts = []
+    screener = EXCHANGE_SCREENER.get(exchange, "crypto")
+    volume_breakouts = []
 
-	# Process in batches
-	batch_size = 100
-	for i in range(0, min(len(symbols), 500), batch_size):  # Limit to 500 symbols for performance
-		batch_symbols = symbols[i:i + batch_size]
+    # Process in batches
+    batch_size = 100
+    for i in range(0, min(len(symbols), 500), batch_size):
+        batch_symbols = symbols[i:i + batch_size]
 
-		try:
-			analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-		except Exception:
-			continue
+        try:
+            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
+        except Exception:
+            continue
 
-		for symbol, data in analysis.items():
-			try:
-				if not data or not hasattr(data, 'indicators'):
-					continue
+        for symbol, data in analysis.items():
+            try:
+                if not data or not hasattr(data, 'indicators'):
+                    continue
 
-				indicators = data.indicators
+                indicators = data.indicators
 
-				# Get required data
-				volume = indicators.get('volume', 0)
-				close = indicators.get('close', 0)
-				open_price = indicators.get('open', 0)
-				sma20_volume = indicators.get('volume.SMA20', 0)  # 20-period volume average
+                # Get required data
+                volume = indicators.get('volume', 0)
+                close = indicators.get('close', 0)
+                open_price = indicators.get('open', 0)
+                sma20_volume = indicators.get('volume.SMA20', 0)
 
-				if not all([volume, close, open_price]) or volume <= 0:
-					continue
+                if not all([volume, close, open_price]) or volume <= 0:
+                    continue
 
-				# Calculate price change %
-				price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
+                # Calculate price change
+                price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
 
-				# Volume ratio calculation
-				# If SMA20 volume not available, skip this symbol as we can't determine breakout
-				if sma20_volume and sma20_volume > 0:
-					volume_ratio = volume / sma20_volume
-				else:
-					# Cannot determine volume breakout without historical average
-					continue
+                # Volume ratio - skip if no historical data
+                if not sma20_volume or sma20_volume <= 0:
+                    continue
+                volume_ratio = volume / sma20_volume
 
-				# Check conditions
-				if (abs(price_change) >= price_change_min and
-					volume_ratio >= volume_multiplier):
+                # Check base conditions
+                if abs(price_change) < price_change_min or volume_ratio < volume_multiplier:
+                    continue
 
-					# Get additional indicators
-					rsi = indicators.get('RSI', 50)
-					bb_upper = indicators.get('BB.upper', 0)
-					bb_lower = indicators.get('BB.lower', 0)
+                # Get additional indicators
+                rsi = indicators.get('RSI', 50)
+                bb_upper = indicators.get('BB.upper', 0)
+                bb_lower = indicators.get('BB.lower', 0)
 
-					# Volume strength score
-					volume_strength = min(10, volume_ratio)  # Cap at 10x
+                # Apply RSI filter in smart mode
+                if mode == "smart":
+                    if rsi_filter == "oversold" and rsi >= 30:
+                        continue
+                    elif rsi_filter == "overbought" and rsi <= 70:
+                        continue
+                    elif rsi_filter == "neutral" and (rsi <= 30 or rsi >= 70):
+                        continue
 
-					volume_breakouts.append({
-						"symbol": symbol,
-						"changePercent": price_change,
-						"volume_ratio": round(volume_ratio, 2),
-						"volume_strength": round(volume_strength, 1),
-						"current_volume": volume,
-						"breakout_type": "bullish" if price_change > 0 else "bearish",
-						"indicators": {
-							"close": close,
-							"RSI": rsi,
-							"BB_upper": bb_upper,
-							"BB_lower": bb_lower,
-							"volume": volume
-						}
-					})
+                # Volume strength score (capped at 10x)
+                volume_strength = min(10, volume_ratio)
 
-			except Exception:
-				continue
+                result = {
+                    "symbol": symbol,
+                    "change_percent": round(price_change, 2),
+                    "volume_ratio": round(volume_ratio, 2),
+                    "volume_strength": round(volume_strength, 1),
+                    "current_volume": volume,
+                    "breakout_type": "bullish" if price_change > 0 else "bearish",
+                    "indicators": {
+                        "close": close,
+                        "rsi": round(rsi, 1),
+                        "bb_upper": bb_upper,
+                        "bb_lower": bb_lower
+                    }
+                }
 
-	# Sort by volume strength first, then by price change
-	volume_breakouts.sort(key=lambda x: (x["volume_strength"], abs(x["changePercent"])), reverse=True)
+                # Add trading recommendation in smart mode
+                if mode == "smart":
+                    if price_change > 0 and volume_ratio >= 2.0:
+                        result["recommendation"] = "STRONG BUY" if rsi < 70 else "OVERBOUGHT - CAUTION"
+                    elif price_change < 0 and volume_ratio >= 2.0:
+                        result["recommendation"] = "STRONG SELL" if rsi > 30 else "OVERSOLD - OPPORTUNITY?"
+                    else:
+                        result["recommendation"] = "NEUTRAL"
 
-	return volume_breakouts[:limit]
+                volume_breakouts.append(result)
+
+            except Exception:
+                continue
+
+    # Sort by volume strength, then price change
+    volume_breakouts.sort(key=lambda x: (x["volume_strength"], abs(x["change_percent"])), reverse=True)
+
+    return volume_breakouts[:limit]
 
 
 @mcp.tool()
-def volume_confirmation_analysis(symbol: str, exchange: str = "KUCOIN", timeframe: str = "15m") -> dict:
+def volume_analysis(symbol: str, exchange: str = "KUCOIN", timeframe: str = "15m") -> dict:
 	"""Detailed volume confirmation analysis for a specific coin.
 
 	Analyzes volume patterns in relation to price movements to identify
@@ -1665,71 +1791,6 @@ def volume_confirmation_analysis(symbol: str, exchange: str = "KUCOIN", timefram
 
 	except Exception as e:
 		return {"error": f"Analysis failed: {str(e)}"}
-
-
-@mcp.tool()
-def smart_volume_scanner(exchange: str = "KUCOIN", min_volume_ratio: float = 2.0, min_price_change: float = 2.0, rsi_range: str = "any", limit: int = 20) -> list[dict]:
-	"""Smart volume + technical analysis combination scanner.
-
-	Combines volume breakout detection with RSI filtering to identify
-	high-probability trading setups.
-
-	Args:
-		exchange: Exchange name
-		min_volume_ratio: Minimum volume multiplier (default 2.0)
-		min_price_change: Minimum price change percentage (default 2.0)
-		rsi_range: "oversold" (<30), "overbought" (>70), "neutral" (30-70), "any"
-		limit: Number of results (max 30)
-
-	Returns:
-		List of coins matching volume and RSI criteria with trading recommendations
-	"""
-	exchange = sanitize_exchange(exchange, "KUCOIN")
-	min_volume_ratio = max(1.2, min(10.0, min_volume_ratio))
-	min_price_change = max(0.5, min(20.0, min_price_change))
-	limit = max(1, min(limit, 30))
-
-	# Get volume breakouts first
-	volume_breakouts = volume_breakout_scanner(
-		exchange=exchange,
-		volume_multiplier=min_volume_ratio,
-		price_change_min=min_price_change,
-		limit=limit * 2  # Get more to filter
-	)
-
-	if not volume_breakouts:
-		return []
-
-	# Apply RSI filter
-	filtered_results = []
-	for coin in volume_breakouts:
-		rsi = coin["indicators"].get("RSI", 50)
-
-		if rsi_range == "oversold" and rsi >= 30:
-			continue
-		elif rsi_range == "overbought" and rsi <= 70:
-			continue
-		elif rsi_range == "neutral" and (rsi <= 30 or rsi >= 70):
-			continue
-		# "any" passes all
-
-		# Add trading recommendation
-		recommendation = ""
-		if coin["changePercent"] > 0 and coin["volume_ratio"] >= 2.0:
-			if rsi < 70:
-				recommendation = "STRONG BUY"
-			else:
-				recommendation = "OVERBOUGHT - CAUTION"
-		elif coin["changePercent"] < 0 and coin["volume_ratio"] >= 2.0:
-			if rsi > 30:
-				recommendation = "STRONG SELL"
-			else:
-				recommendation = "OVERSOLD - OPPORTUNITY?"
-
-		coin["trading_recommendation"] = recommendation
-		filtered_results.append(coin)
-
-	return filtered_results[:limit]
 
 
 # =============================================================================
@@ -1892,17 +1953,17 @@ def pivot_points_scanner(
 
 
 @mcp.tool()
-def recommendation_scanner(
+def tradingview_recommendation(
     exchange: str = "KUCOIN",
     timeframe: str = "15m",
     signal_filter: str = "STRONG_BUY",
     min_strength: float = 0.5,
     limit: int = 25
 ) -> list[dict]:
-    """Scan for coins based on TradingView's recommendation signals.
+    """Scan for coins based on TradingView's technical analysis recommendations.
 
-    Uses TradingView's built-in technical analysis recommendations which
-    combine multiple indicators to generate Buy/Sell signals.
+    Uses TradingView's built-in technical analysis engine which combines
+    multiple indicators (MAs, oscillators) to generate Buy/Sell signals.
 
     Args:
         exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
@@ -2030,6 +2091,31 @@ def recommendation_scanner(
 
 
 # =============================================================================
+# Health Check Endpoints (for HTTP mode)
+# =============================================================================
+
+if STARLETTE_AVAILABLE:
+    @mcp.custom_route("/health", methods=["GET"])
+    async def health_check(request: Request) -> JSONResponse:
+        """Health check endpoint for deployment platforms."""
+        return JSONResponse({
+            "status": "healthy",
+            "service": "sigmapilot-mcp",
+            "version": "1.2.0",
+        })
+
+    @mcp.custom_route("/", methods=["GET"])
+    async def root_health(request: Request) -> JSONResponse:
+        """Root endpoint returns health status."""
+        return JSONResponse({
+            "status": "healthy",
+            "service": "sigmapilot-mcp",
+            "version": "1.2.0",
+            "docs": "Use /health for health checks, /mcp for MCP protocol"
+        })
+
+
+# =============================================================================
 # Entry Point
 # =============================================================================
 
@@ -2038,32 +2124,74 @@ def main() -> None:
     Main entry point for the SigmaPilot MCP server.
 
     Parses command line arguments and starts the server in either stdio mode
-    (for Claude Desktop) or HTTP mode (for remote access).
+    (for Claude Desktop) or HTTP mode (for remote access with optional Auth0).
 
     Command line options:
         transport: "stdio" (default) or "streamable-http"
         --host: Server host for HTTP mode (default: 127.0.0.1)
         --port: Server port for HTTP mode (default: 8000)
+        --auth: Enable Auth0 authentication (HTTP mode only)
+
+    Environment Variables:
+        AUTH0_DOMAIN: Auth0 tenant domain (e.g., your-tenant.auth0.com)
+        AUTH0_AUDIENCE: API identifier from Auth0
+        RESOURCE_SERVER_URL: Public URL for OAuth (e.g., https://your-app.railway.app/mcp)
+        HOST: Override default host
+        PORT: Override default port
     """
+    global mcp
+
     parser = argparse.ArgumentParser(description="SigmaPilot MCP server")
-    parser.add_argument("transport", choices=["stdio", "streamable-http"], default="stdio", nargs="?", help="Transport (default stdio)")
+    parser.add_argument(
+        "transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        nargs="?",
+        help="Transport mode (default: stdio)"
+    )
     parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    parser.add_argument("--auth", action="store_true", help="Enable Auth0 authentication")
     args = parser.parse_args()
 
     # Debug logging if enabled
     if os.environ.get("DEBUG_MCP"):
         import sys
-        print(f"[DEBUG_MCP] pkg cwd={os.getcwd()} argv={sys.argv} file={__file__}", file=sys.stderr, flush=True)
+        print(f"[DEBUG_MCP] cwd={os.getcwd()} argv={sys.argv}", file=sys.stderr, flush=True)
 
     if args.transport == "stdio":
+        # Standard I/O mode for Claude Desktop - no auth needed
+        logger.info("Starting SigmaPilot MCP in stdio mode")
         mcp.run()
     else:
+        # HTTP mode - optionally enable Auth0
+        enable_auth = args.auth or bool(AUTH0_DOMAIN and AUTH0_AUDIENCE)
+
+        if enable_auth:
+            # Recreate server with auth if credentials are available
+            if AUTH0_AVAILABLE and AUTH0_DOMAIN and AUTH0_AUDIENCE:
+                mcp = create_mcp_server(enable_auth=True)
+                logger.info(f"Auth0 enabled - Domain: {AUTH0_DOMAIN}")
+            else:
+                if not AUTH0_AVAILABLE:
+                    logger.warning("Auth0 requested but dependencies not available")
+                else:
+                    logger.warning("Auth0 requested but AUTH0_DOMAIN/AUTH0_AUDIENCE not set")
+                logger.warning("Running without authentication (development mode)")
+        else:
+            logger.warning("Running without authentication (development mode)")
+            logger.info("Set AUTH0_DOMAIN and AUTH0_AUDIENCE for production")
+
+        # Configure server settings
         try:
             mcp.settings.host = args.host
             mcp.settings.port = args.port
         except Exception:
             pass
+
+        logger.info(f"Starting SigmaPilot MCP on {args.host}:{args.port}")
+        logger.info(f"Health check: http://{args.host}:{args.port}/health")
+
         mcp.run(transport="streamable-http")
 
 

@@ -34,7 +34,7 @@ A clear and concise description of what actually happened.
 // Your claude_desktop_config.json MCP server configuration
 {
   "mcpServers": {
-    "tradingview-mcp": {
+    "sigmapilot-mcp": {
       // paste your config here
     }
   }

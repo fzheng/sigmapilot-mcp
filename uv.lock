@@ -1091,6 +1091,7 @@ dependencies = [
     { name = "mcp-oauth" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-dotenv" },
+    { name = "starlette" },
     { name = "tradingview-screener" },
     { name = "tradingview-ta" },
 ]
@@ -1109,6 +1110,7 @@ requires-dist = [
     { name = "mcp-oauth", specifier = ">=0.0.5" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "starlette", specifier = ">=0.27.0" },
     { name = "tradingview-screener", specifier = ">=0.6.4" },
     { name = "tradingview-ta", specifier = ">=3.3.0" },
 ]

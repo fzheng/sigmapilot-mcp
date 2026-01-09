@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic/sigmapilot-mcp",
+  "name": "sigmapilot-mcp",
   "version": "1.2.0",
   "description": "SigmaPilot MCP Server - AI-powered market intelligence with comprehensive technical analysis",
   "type": "module",
@@ -41,12 +41,11 @@
       "bollinger_scan",
       "rating_filter",
       "coin_analysis",
-      "consecutive_candles_scan",
-      "advanced_candle_pattern",
-      "volume_breakout_scanner",
-      "smart_volume_scanner",
+      "candle_pattern_scanner",
+      "volume_scanner",
+      "volume_analysis",
       "pivot_points_scanner",
-      "recommendation_scanner"
+      "tradingview_recommendation"
     ],
     "resources": [
       "exchanges://list"

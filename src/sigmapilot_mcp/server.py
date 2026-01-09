@@ -2122,7 +2122,7 @@ def register_health_routes(server: FastMCP) -> None:
         return JSONResponse({
             "status": "healthy",
             "service": "sigmapilot-mcp",
-            "version": "1.2.0",
+            "version": "1.3.0",
         })
 
     @server.custom_route("/", methods=["GET"])
@@ -2131,7 +2131,7 @@ def register_health_routes(server: FastMCP) -> None:
         return JSONResponse({
             "status": "healthy",
             "service": "sigmapilot-mcp",
-            "version": "1.2.0",
+            "version": "1.3.0",
             "docs": "Use /health for health checks, /mcp for MCP protocol"
         })
 

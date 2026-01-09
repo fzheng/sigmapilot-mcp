@@ -477,6 +477,9 @@ Timeframes: 5m, 15m, 1h, 4h, 1D, 1W, 1M
 AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", "")
 AUTH0_AUDIENCE = os.environ.get("AUTH0_AUDIENCE", "")
 RESOURCE_SERVER_URL = os.environ.get("RESOURCE_SERVER_URL", "http://localhost:8000/mcp")
+# HTTP server configuration (Railway sets PORT automatically)
+HTTP_HOST = os.environ.get("HOST", "0.0.0.0")
+HTTP_PORT = int(os.environ.get("PORT", "8000"))
 
 # Global token verifier (set when auth is enabled)
 _token_verifier: Optional[Any] = None
@@ -484,21 +487,27 @@ _token_verifier: Optional[Any] = None
 
 def create_mcp_server(
     enable_auth: bool = False,
-    host: str = "0.0.0.0",
-    port: int = 8000
+    host: Optional[str] = None,
+    port: Optional[int] = None
 ) -> FastMCP:
     """
     Create and configure the MCP server with optional Auth0 authentication.
 
     Args:
         enable_auth: Enable Auth0 authentication (requires environment variables)
-        host: Server host for HTTP mode
-        port: Server port for HTTP mode
+        host: Server host for HTTP mode (default: from HOST env var or 0.0.0.0)
+        port: Server port for HTTP mode (default: from PORT env var or 8000)
 
     Returns:
         Configured FastMCP server instance
     """
     global _token_verifier
+
+    # Use module-level defaults if not specified
+    if host is None:
+        host = HTTP_HOST
+    if port is None:
+        port = HTTP_PORT
 
     auth_settings = None
     token_verifier = None
@@ -2183,8 +2192,8 @@ def main() -> None:
         nargs="?",
         help="Transport mode (default: stdio)"
     )
-    parser.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    parser.add_argument("--host", default=HTTP_HOST)
+    parser.add_argument("--port", type=int, default=HTTP_PORT)
     parser.add_argument("--auth", action="store_true", help="Enable Auth0 authentication")
     args = parser.parse_args()
 
@@ -2222,6 +2231,7 @@ def main() -> None:
 
         logger.info(f"Starting SigmaPilot MCP on {args.host}:{args.port}")
         logger.info(f"Health check: http://{args.host}:{args.port}/health")
+        logger.info(f"Environment: PORT={os.environ.get('PORT', 'not set')}, HOST={os.environ.get('HOST', 'not set')}")
 
         server.run(transport="streamable-http")
 

@@ -99,6 +99,7 @@ This document tracks development tasks, improvements, and known issues.
 ### Testing
 - [ ] Integration tests with mock market API
 - [ ] End-to-end tests for MCP tools
+- [ ] Add tests for error response schema validation in theory-based tools
 
 ### Infrastructure
 - [ ] Set up GitHub Actions for CI/CD
@@ -107,9 +108,25 @@ This document tracks development tasks, improvements, and known issues.
 
 ## Medium Priority
 
+### Code Quality (from v2.0.0 Code Review)
+- [ ] Remove duplicate constants between `validators.py` and `sanitize.py` (DRY violation)
+  - `ALLOWED_TIMEFRAMES` defined in both files
+  - `EXCHANGE_SCREENER` defined in both files
+  - Recommendation: Import from `sanitize.py` in `validators.py`
+- [ ] Standardize import patterns across engines
+  - Tier 1 engines use relative imports (`from ..core.x`)
+  - Tier 2 engines use absolute imports (`from sigmapilot_mcp.core.x`)
+  - Recommendation: Standardize all to relative imports
+- [ ] Improve `has_volume` property in `data_loader.py` to check volume coverage percentage
+  - Currently returns True if ANY bar has volume
+  - Should check if majority (e.g., 80%+) have volume
+- [ ] Add bounds checking in swing point detection (`dow_theory.py` lines 150-179)
+- [ ] Improve NaN handling in Ichimoku functions (`ichimoku.py` lines 260-263)
+
 ### Documentation
 - [ ] Add API reference documentation
 - [ ] Add troubleshooting guide for Auth0
+- [ ] Add docstrings to internal helper functions in engine files
 
 ### Code Organization
 - [ ] Break down large functions (e.g., `coin_analysis` is 137 lines)
@@ -119,6 +136,10 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] Add `functools.lru_cache` to `load_symbols()` for disk I/O caching
 - [ ] Profile API call patterns for optimization opportunities
 - [ ] Consider batch size optimization based on exchange
+- [ ] Improve OHLCVData cache invalidation (prevent bypassing via direct `bars` list manipulation)
+
+### Security
+- [ ] Add file size validation for CSV loading in `data_loader.py` (prevent memory exhaustion)
 
 ## Low Priority
 
@@ -135,6 +156,7 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] WebSocket support for real-time data
 - [ ] Multiple auth provider support (Google, GitHub)
 - [ ] Additional data sources beyond TradingView
+- [ ] Multi-engine consensus calculations (aggregate signals from multiple engines)
 
 ## Notes
 

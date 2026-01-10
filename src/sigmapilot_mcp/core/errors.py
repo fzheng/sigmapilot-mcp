@@ -54,12 +54,19 @@ class RateLimitError(APIError):
         self.retry_after = retry_after
 
 
-class TimeoutError(APIError):
-    """API request timeout."""
+class APITimeoutError(APIError):
+    """API request timeout.
+
+    Note: Named APITimeoutError to avoid collision with Python's builtin TimeoutError.
+    """
 
     def __init__(self, message: str = "API request timed out.", timeout_seconds: float | None = None):
         super().__init__(message, {"timeout_seconds": timeout_seconds})
         self.timeout_seconds = timeout_seconds
+
+
+# Backwards compatibility alias (deprecated - use APITimeoutError)
+TimeoutError = APITimeoutError  # noqa: A001
 
 
 class InsufficientDataError(DataError):
@@ -122,7 +129,7 @@ def build_error_response(error: Exception, tool_name: str) -> Dict[str, Any]:
             f"The TradingView API has temporarily restricted requests. "
             f"Please wait a moment and try again."
         )
-    elif isinstance(error, TimeoutError):
+    elif isinstance(error, APITimeoutError):
         llm_summary = (
             f"Analysis timed out while fetching data. "
             f"The data provider did not respond in time. "
@@ -200,7 +207,7 @@ def classify_api_error(error_message: str) -> SigmaPilotError:
         return RateLimitError(error_message)
 
     if any(term in msg_lower for term in ["timeout", "timed out", "deadline"]):
-        return TimeoutError(error_message)
+        return APITimeoutError(error_message)
 
     if any(term in msg_lower for term in ["not found", "invalid symbol", "unknown symbol"]):
         # Extract symbol if possible

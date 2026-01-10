@@ -134,6 +134,7 @@ from sigmapilot_mcp.engines import (
     analyze_market_profile,
 )
 from sigmapilot_mcp.core.data_loader import OHLCVData, OHLCVBar
+from sigmapilot_mcp.core.schemas import build_error_result
 
 # =============================================================================
 # Optional Dependencies
@@ -2319,6 +2320,18 @@ def _fetch_ohlcv_for_symbol(symbol: str, exchange: str, timeframe: str, limit: i
 
     This is a helper to convert TradingView data to OHLCVData format
     for the theory-based analysis engines.
+
+    Args:
+        symbol: Trading symbol (e.g., "BTCUSDT")
+        exchange: Exchange name (e.g., "BINANCE", "KUCOIN")
+        timeframe: Timeframe (e.g., "1D", "4h")
+        limit: Number of bars to generate
+
+    Returns:
+        OHLCVData object with price bars
+
+    Raises:
+        ValueError: If required price data is missing from API response
     """
     exchange = sanitize_exchange(exchange, "KUCOIN")
     timeframe = sanitize_timeframe(timeframe, "1D")
@@ -2335,13 +2348,25 @@ def _fetch_ohlcv_for_symbol(symbol: str, exchange: str, timeframe: str, limit: i
     analysis = handler.get_analysis()
     indicators = analysis.indicators
 
-    # Build bars from indicators
-    # TradingView provides current bar data - we'll create a simplified dataset
-    close = indicators.get('close', 100)
-    open_price = indicators.get('open', close)
-    high = indicators.get('high', max(open_price, close))
-    low = indicators.get('low', min(open_price, close))
-    volume = indicators.get('volume', 1000)
+    # Validate required price data is present
+    close = indicators.get('close')
+    if close is None:
+        raise ValueError(f"No price data available for {symbol} on {exchange}")
+
+    open_price = indicators.get('open')
+    high = indicators.get('high')
+    low = indicators.get('low')
+    volume = indicators.get('volume')
+
+    # Use sensible fallbacks only for non-critical data
+    if open_price is None:
+        open_price = close
+    if high is None:
+        high = max(open_price, close)
+    if low is None:
+        low = min(open_price, close)
+    if volume is None:
+        volume = 1000  # Default volume when not available
 
     # For a proper implementation, we'd need historical data
     # This is a simplified version that creates synthetic data
@@ -2409,14 +2434,7 @@ def dow_theory_trend(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_dow_theory(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Dow Theory"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "dow_theory_trend")
 
 
 @mcp.tool()
@@ -2444,14 +2462,7 @@ def ichimoku_insight(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_ichimoku(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Ichimoku Kinko Hyo"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "ichimoku_insight")
 
 
 @mcp.tool()
@@ -2479,14 +2490,7 @@ def vsa_analyzer(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_vsa(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Volume Spread Analysis"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "vsa_analyzer")
 
 
 @mcp.tool()
@@ -2514,14 +2518,7 @@ def chart_pattern_finder(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_chart_patterns(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Chart Patterns"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "chart_pattern_finder")
 
 
 @mcp.tool()
@@ -2549,14 +2546,7 @@ def wyckoff_phase_detector(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_wyckoff(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Wyckoff Method"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "wyckoff_phase_detector")
 
 
 @mcp.tool()
@@ -2584,14 +2574,7 @@ def elliott_wave_analyzer(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_elliott_wave(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Elliott Wave Theory"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "elliott_wave_analyzer")
 
 
 @mcp.tool()
@@ -2619,14 +2602,7 @@ def chan_theory_analyzer(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_chan_theory(data, strictness=strictness, mode=strictness)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Chan Theory (Chanlun)"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "chan_theory_analyzer")
 
 
 @mcp.tool()
@@ -2654,14 +2630,7 @@ def harmonic_pattern_detector(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_harmonic(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Harmonic Patterns"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "harmonic_pattern_detector")
 
 
 @mcp.tool()
@@ -2689,14 +2658,7 @@ def market_profile_analyzer(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_market_profile(data, mode=mode)
     except Exception as e:
-        return {
-            "status": "error",
-            "confidence": 0,
-            "is_error": True,
-            "attribution": {"theory": "Market Profile"},
-            "llm_summary": f"Error analyzing {symbol}: {str(e)}",
-            "invalidation": "N/A"
-        }
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "market_profile_analyzer")
 
 
 # =============================================================================

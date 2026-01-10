@@ -173,18 +173,6 @@ For local development or direct Claude Desktop connection (stdio mode).
 | `harmonic_analyzer` | Harmonic patterns (Gartley, Bat, Butterfly, Crab) |
 | `market_profile_analyzer` | Market Profile (POC, Value Area, profile shape) |
 
-## Bollinger Band Rating System
-
-| Rating | Meaning | Signal |
-|--------|---------|--------|
-| +3 | Above upper band | Strong momentum (may be overbought) |
-| +2 | Upper 50% of bands | BUY |
-| +1 | Above middle line | Weak bullish |
-| 0 | At middle line | NEUTRAL |
-| -1 | Below middle line | Weak bearish |
-| -2 | Lower 50% of bands | SELL |
-| -3 | Below lower band | Strong momentum (may be oversold) |
-
 ## Example Queries
 
 ```

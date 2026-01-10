@@ -2,45 +2,37 @@
 SigmaPilot MCP Server - Unified Entry Point.
 
 This module provides the main MCP server implementation for cryptocurrency and
-stock market analysis. It offers tools for market screening, technical analysis,
-and pattern detection.
+stock market analysis. It offers tools for market scanning, basic technical
+analysis, and sophisticated theory-based pattern detection.
 
 The server supports both local (stdio) and remote (HTTP with Auth0) modes.
 
 Features:
-    - Top gainers/losers screening by exchange and timeframe
-    - Bollinger Band analysis and squeeze detection
-    - Candle pattern scanning (consecutive and advanced patterns)
-    - Volume analysis (breakout detection and smart scanning)
-    - Single coin detailed analysis
-    - TradingView recommendation signals
-    - Pivot point analysis
+    - Market scanners for finding trading opportunities across exchanges
+    - Basic technical analysis with volume confirmation
     - Theory-based analysis (9 engines): Dow Theory, Ichimoku, VSA,
       Chart Patterns, Wyckoff, Elliott Wave, Chan Theory, Harmonic, Market Profile
 
-Tools (19 total):
-    Market Screening (10):
-    1. top_gainers - Top gaining assets
-    2. top_losers - Top losing assets
-    3. bollinger_scan - Bollinger Band squeeze detection
-    4. rating_filter - Filter by BB rating
-    5. coin_analysis - Detailed single-symbol analysis
-    6. candle_pattern_scanner - Candle pattern detection
-    7. volume_scanner - Volume breakout and smart scanning
-    8. volume_analysis - Single-symbol volume confirmation
-    9. pivot_points_scanner - Pivot point level analysis
-    10. tradingview_recommendation - TradingView signals
+Tools (16 total):
+    Market Scanners (6):
+    1. top_gainers_scanner - Top gaining assets by exchange/timeframe
+    2. top_losers_scanner - Top losing assets by exchange/timeframe
+    3. bollinger_scanner - Bollinger Band squeeze detection
+    4. rating_scanner - Filter by Bollinger Band rating (-3 to +3)
+    5. volume_scanner - Volume breakout detection with RSI filtering
+    6. pivot_points_scanner - Find assets near pivot point levels
 
-    Theory-Based Analysis (9 - v2.0.0):
-    11. dow_theory_trend - Dow Theory trend analysis
-    12. ichimoku_insight - Ichimoku Kinko Hyo analysis
-    13. vsa_analyzer - Volume Spread Analysis
-    14. chart_pattern_finder - Classical chart patterns
-    15. wyckoff_phase_detector - Wyckoff phase detection
-    16. elliott_wave_analyzer - Elliott Wave analysis
-    17. chan_theory_analyzer - Chan Theory (Chanlun) analysis
-    18. harmonic_pattern_detector - Harmonic pattern detection
-    19. market_profile_analyzer - Market Profile analysis
+    Analyzers (10):
+    7. basic_ta_analyzer - Basic technical analysis with volume confirmation
+    8. dow_theory_analyzer - Dow Theory trend analysis (HH/HL, LL/LH)
+    9. ichimoku_analyzer - Ichimoku Kinko Hyo analysis
+    10. vsa_analyzer - Volume Spread Analysis (smart money signals)
+    11. chart_pattern_analyzer - Classical chart patterns (H&S, triangles, etc.)
+    12. wyckoff_analyzer - Wyckoff phase detection (accumulation/distribution)
+    13. elliott_wave_analyzer - Elliott Wave pattern analysis
+    14. chan_theory_analyzer - Chan Theory/Chanlun analysis
+    15. harmonic_analyzer - Harmonic patterns (Gartley, Bat, Butterfly, Crab)
+    16. market_profile_analyzer - Market Profile (POC, Value Area)
 
 Usage:
     # Run as stdio server (for Claude Desktop)
@@ -2090,27 +2082,24 @@ def register_tools(server: FastMCP) -> None:
     This is used for HTTP mode where we create a fresh server with auth configuration.
     The tools are defined above with @mcp.tool() decorators for stdio mode.
     """
-    # Register market screening tools
-    server.tool()(top_gainers)
-    server.tool()(top_losers)
-    server.tool()(bollinger_scan)
-    server.tool()(rating_filter)
-    server.tool()(coin_analysis)
-    server.tool()(candle_pattern_scanner)
+    # Register market scanners (6)
+    server.tool()(top_gainers_scanner)
+    server.tool()(top_losers_scanner)
+    server.tool()(bollinger_scanner)
+    server.tool()(rating_scanner)
     server.tool()(volume_scanner)
-    server.tool()(volume_analysis)
     server.tool()(pivot_points_scanner)
-    server.tool()(tradingview_recommendation)
 
-    # Register theory-based analysis engines (v2.0.0)
-    server.tool()(dow_theory_trend)
-    server.tool()(ichimoku_insight)
+    # Register analyzers (10)
+    server.tool()(basic_ta_analyzer)
+    server.tool()(dow_theory_analyzer)
+    server.tool()(ichimoku_analyzer)
     server.tool()(vsa_analyzer)
-    server.tool()(chart_pattern_finder)
-    server.tool()(wyckoff_phase_detector)
+    server.tool()(chart_pattern_analyzer)
+    server.tool()(wyckoff_analyzer)
     server.tool()(elliott_wave_analyzer)
     server.tool()(chan_theory_analyzer)
-    server.tool()(harmonic_pattern_detector)
+    server.tool()(harmonic_analyzer)
     server.tool()(market_profile_analyzer)
 
     # Register resources

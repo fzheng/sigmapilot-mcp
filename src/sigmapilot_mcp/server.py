@@ -46,6 +46,13 @@ Environment Variables:
     AUTH0_DOMAIN: Auth0 tenant domain (enables authentication)
     AUTH0_AUDIENCE: Auth0 API audience identifier
     RESOURCE_SERVER_URL: Public URL for OAuth resource server
+
+    Rate Limiting (TradingView API):
+    TV_BATCH_SIZE: Symbols per API batch (default: 50)
+    TV_BATCH_DELAY: Seconds between batches (default: 0.5)
+    TV_MAX_RETRIES: Max retry attempts on rate limit (default: 3)
+    TV_RETRY_BASE_DELAY: Base delay for exponential backoff (default: 2.0)
+    TV_MAX_SYMBOLS: Max symbols to scan per request (default: 300)
 """
 
 from __future__ import annotations
@@ -126,6 +133,117 @@ except ImportError:
 # that use it, with their own error handling
 
 # =============================================================================
+# Rate Limiting Configuration
+# =============================================================================
+# TradingView has undocumented rate limits. These settings help avoid hitting them.
+# Based on community findings: >7 concurrent connections trigger 429 errors.
+
+import time
+import random
+
+# Configurable via environment variables
+API_BATCH_SIZE = int(os.environ.get("TV_BATCH_SIZE", "50"))  # Symbols per batch (reduced from 100-200)
+API_BATCH_DELAY = float(os.environ.get("TV_BATCH_DELAY", "0.5"))  # Seconds between batches
+API_MAX_RETRIES = int(os.environ.get("TV_MAX_RETRIES", "3"))  # Max retry attempts
+API_RETRY_BASE_DELAY = float(os.environ.get("TV_RETRY_BASE_DELAY", "2.0"))  # Base delay for exponential backoff
+API_MAX_SYMBOLS_PER_SCAN = int(os.environ.get("TV_MAX_SYMBOLS", "300"))  # Max symbols to scan per request
+
+# Track last request time for global throttling
+_last_api_request_time: float = 0.0
+_api_request_lock = None  # Will use threading.Lock for thread safety
+
+try:
+    import threading
+    _api_request_lock = threading.Lock()
+except ImportError:
+    pass
+
+
+def _throttled_api_call(api_func, *args, **kwargs):
+    """
+    Execute an API call with rate limiting and retry logic.
+
+    Features:
+    - Global throttling: Ensures minimum delay between all API calls
+    - Exponential backoff: Retries failed requests with increasing delays
+    - Jitter: Adds randomness to prevent thundering herd
+
+    Args:
+        api_func: The API function to call (e.g., get_multiple_analysis)
+        *args, **kwargs: Arguments to pass to the API function
+
+    Returns:
+        The result of the API call
+
+    Raises:
+        The last exception if all retries fail
+    """
+    global _last_api_request_time
+
+    last_exception = None
+
+    for attempt in range(API_MAX_RETRIES):
+        try:
+            # Global throttling - ensure minimum time between requests
+            if _api_request_lock:
+                with _api_request_lock:
+                    elapsed = time.time() - _last_api_request_time
+                    if elapsed < API_BATCH_DELAY:
+                        sleep_time = API_BATCH_DELAY - elapsed
+                        # Add jitter (10-30% random variation)
+                        jitter = sleep_time * random.uniform(0.1, 0.3)
+                        time.sleep(sleep_time + jitter)
+                    _last_api_request_time = time.time()
+            else:
+                # Fallback without lock
+                time.sleep(API_BATCH_DELAY)
+
+            # Make the API call
+            result = api_func(*args, **kwargs)
+            return result
+
+        except Exception as e:
+            last_exception = e
+            error_str = str(e).lower()
+
+            # Check if it's a rate limit error (worth retrying)
+            is_rate_limit = any(term in error_str for term in [
+                "429", "too many", "rate limit", "max sessions",
+                "expecting value"  # Empty response often means rate limited
+            ])
+
+            if is_rate_limit and attempt < API_MAX_RETRIES - 1:
+                # Exponential backoff with jitter
+                delay = API_RETRY_BASE_DELAY * (2 ** attempt)
+                jitter = delay * random.uniform(0.1, 0.3)
+                total_delay = delay + jitter
+
+                logger.warning(
+                    f"Rate limit detected (attempt {attempt + 1}/{API_MAX_RETRIES}). "
+                    f"Retrying in {total_delay:.1f}s..."
+                )
+                time.sleep(total_delay)
+            elif not is_rate_limit:
+                # Non-rate-limit error, don't retry
+                raise
+
+    # All retries exhausted
+    if last_exception:
+        raise last_exception
+
+
+def _get_batch_config():
+    """Get current batch configuration for logging/debugging."""
+    return {
+        "batch_size": API_BATCH_SIZE,
+        "batch_delay": API_BATCH_DELAY,
+        "max_retries": API_MAX_RETRIES,
+        "retry_base_delay": API_RETRY_BASE_DELAY,
+        "max_symbols": API_MAX_SYMBOLS_PER_SCAN
+    }
+
+
+# =============================================================================
 # Type Definitions
 # =============================================================================
 
@@ -190,6 +308,45 @@ def _percent_change(o: Optional[float], c: Optional[float]) -> Optional[float]:
 _tf_to_tv_resolution = tf_to_tv_resolution
 
 
+def _classify_api_error(error: Exception) -> str:
+    """
+    Classify TradingView API errors into user-friendly messages.
+
+    Args:
+        error: The exception raised during API call
+
+    Returns:
+        A descriptive error message based on the error type
+    """
+    error_str = str(error).lower()
+    error_type = type(error).__name__
+
+    # JSON decode errors - empty or invalid response
+    if "expecting value" in error_str or "jsondecodeerror" in error_type.lower():
+        return "TradingView API returned empty response. This may indicate rate limiting or temporary unavailability. Please wait a moment and try again."
+
+    # Connection errors
+    if any(term in error_str for term in ["connection", "timeout", "timed out", "refused"]):
+        return f"Network error connecting to TradingView API: {error}. Please check your internet connection."
+
+    # HTTP errors
+    if "429" in error_str or "too many requests" in error_str:
+        return "TradingView API rate limit exceeded. Please wait 30-60 seconds before retrying."
+
+    if "403" in error_str or "forbidden" in error_str:
+        return "TradingView API access denied. The API may be temporarily blocking requests."
+
+    if "500" in error_str or "502" in error_str or "503" in error_str or "504" in error_str:
+        return f"TradingView API server error ({error_str[:50]}...). Please try again later."
+
+    # Symbol-related errors
+    if "symbol" in error_str and ("not found" in error_str or "invalid" in error_str):
+        return f"Invalid symbol or exchange: {error}"
+
+    # Generic fallback with original error
+    return f"TradingView API error: {error}"
+
+
 def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int = 50, bbw_filter: float = None) -> List[Row]:
     """
     Fetch Bollinger Band analysis data for symbols on an exchange.
@@ -212,68 +369,89 @@ def _fetch_bollinger_analysis(exchange: str, timeframe: str = "4h", limit: int =
     """
     if not TRADINGVIEW_TA_AVAILABLE:
         raise RuntimeError("tradingview_ta is missing; run `uv sync`.")
-    
+
     # Load symbols from coinlist files
     symbols = load_symbols(exchange)
     if not symbols:
         raise RuntimeError(f"No symbols found for exchange: {exchange}")
-    
-    # Limit symbols for performance
-    symbols = symbols[:limit * 2]  # Get more to filter later
-    
+
+    # Limit symbols for performance (use configured max)
+    max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN, limit * 3)
+    symbols = symbols[:max_symbols]
+
     # Get screener type based on exchange
     screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-    
-    try:
-        analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=symbols)
-    except Exception as e:
-        raise RuntimeError(f"Analysis failed: {str(e)}")
-    
+
     rows: List[Row] = []
-    
-    for key, value in analysis.items():
+
+    # Process in batches with rate limiting
+    total_batches = (len(symbols) + API_BATCH_SIZE - 1) // API_BATCH_SIZE
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, len(symbols), API_BATCH_SIZE):
+        batch_symbols = symbols[i:i + API_BATCH_SIZE]
+
         try:
-            if value is None:
-                continue
-                
-            indicators = value.indicators
-            metrics = compute_metrics(indicators)
-            
-            if not metrics or metrics.get('bbw') is None:
-                continue
-            
-            # Apply BBW filter if specified
-            if bbw_filter is not None and (metrics['bbw'] >= bbw_filter or metrics['bbw'] <= 0):
-                continue
-            
-            # Check if we have required indicators
-            if not (indicators.get("EMA50") and indicators.get("RSI")):
-                continue
-                
-            rows.append(Row(
-                symbol=key,
-                changePercent=metrics['change'],
-                indicators=IndicatorMap(
-                    open=metrics.get('open'),
-                    close=metrics.get('price'),
-                    SMA20=indicators.get("SMA20"),
-                    BB_upper=indicators.get("BB.upper"),
-                    BB_lower=indicators.get("BB.lower"),
-                    EMA9=indicators.get("EMA9"),
-                    EMA21=indicators.get("EMA21"),
-                    EMA50=indicators.get("EMA50"),
-                    RSI=indicators.get("RSI"),
-                    ATR=indicators.get("ATR"),
-                    volume=indicators.get("volume"),
-                )
-            ))
-                
-        except (TypeError, ZeroDivisionError, KeyError):
+            analysis = _throttled_api_call(
+                get_multiple_analysis,
+                screener=screener,
+                interval=timeframe,
+                symbols=batch_symbols
+            )
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Bollinger batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
-    
+
+        for key, value in analysis.items():
+            try:
+                if value is None:
+                    continue
+
+                indicators = value.indicators
+                metrics = compute_metrics(indicators)
+
+                if not metrics or metrics.get('bbw') is None:
+                    continue
+
+                # Apply BBW filter if specified
+                if bbw_filter is not None and (metrics['bbw'] >= bbw_filter or metrics['bbw'] <= 0):
+                    continue
+
+                # Check if we have required indicators
+                if not (indicators.get("EMA50") and indicators.get("RSI")):
+                    continue
+
+                rows.append(Row(
+                    symbol=key,
+                    changePercent=metrics['change'],
+                    indicators=IndicatorMap(
+                        open=metrics.get('open'),
+                        close=metrics.get('price'),
+                        SMA20=indicators.get("SMA20"),
+                        BB_upper=indicators.get("BB.upper"),
+                        BB_lower=indicators.get("BB.lower"),
+                        EMA9=indicators.get("EMA9"),
+                        EMA21=indicators.get("EMA21"),
+                        EMA50=indicators.get("EMA50"),
+                        RSI=indicators.get("RSI"),
+                        ATR=indicators.get("ATR"),
+                        volume=indicators.get("volume"),
+                    )
+                ))
+
+            except (TypeError, ZeroDivisionError, KeyError):
+                continue
+
+    # If all batches failed, raise an error
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort by change percentage in descending order (highest gainers first)
     rows.sort(key=lambda x: x["changePercent"], reverse=True)
-    
+
     # Return the requested limit
     return rows[:limit]
 
@@ -301,26 +479,38 @@ def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: 
     """
     if not TRADINGVIEW_TA_AVAILABLE:
         raise RuntimeError("tradingview_ta is missing; run `uv sync`.")
-    
+
     symbols = load_symbols(exchange)
     if not symbols:
         raise RuntimeError(f"No symbols found for exchange: {exchange}")
-    
-    # Process symbols in batches due to TradingView API limits
-    batch_size = 200  # Considering API limitations
+
+    # Limit symbols to configured max
+    symbols = symbols[:API_MAX_SYMBOLS_PER_SCAN]
+
     all_coins = []
-    
     screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-    
-    # Process symbols in batches
-    for i in range(0, len(symbols), batch_size):
-        batch_symbols = symbols[i:i + batch_size]
-        
+
+    # Process symbols in batches with rate limiting
+    failed_batches = 0
+    total_batches = (len(symbols) + API_BATCH_SIZE - 1) // API_BATCH_SIZE
+    last_error = None
+
+    for i in range(0, len(symbols), API_BATCH_SIZE):
+        batch_symbols = symbols[i:i + API_BATCH_SIZE]
+
         try:
-            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
+            analysis = _throttled_api_call(
+                get_multiple_analysis,
+                screener=screener,
+                interval=timeframe,
+                symbols=batch_symbols
+            )
         except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Trending batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue  # If this batch fails, move to the next one
-            
+
         # Process coins in this batch
         for key, value in analysis.items():
             try:
@@ -358,10 +548,14 @@ def _fetch_trending_analysis(exchange: str, timeframe: str = "5m", filter_type: 
                 
             except (TypeError, ZeroDivisionError, KeyError):
                 continue
-    
+
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort all coins by change percentage
     all_coins.sort(key=lambda x: x["changePercent"], reverse=True)
-    
+
     return all_coins[:limit]
 def _fetch_multi_changes(exchange: str, timeframes: List[str] | None, base_timeframe: str = "4h", limit: int | None = None, cookies: Any | None = None) -> List[MultiRow]:
     """
@@ -672,12 +866,13 @@ def coin_analysis(
         screener = EXCHANGE_SCREENER.get(exchange, "crypto")
         
         try:
-            analysis = get_multiple_analysis(
+            analysis = _throttled_api_call(
+                get_multiple_analysis,
                 screener=screener,
                 interval=timeframe,
                 symbols=[full_symbol]
             )
-            
+
             if full_symbol not in analysis or analysis[full_symbol] is None:
                 return {
                     "error": f"No data found for {symbol} on {exchange}",
@@ -1090,22 +1285,43 @@ def candle_pattern_scanner(
                 "timeframe": timeframe
             }
 
-        # Limit symbols for performance
-        symbols = symbols[:min(limit * 3, 200)]
+        # Limit symbols for performance (use configured max)
+        max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN, limit * 3)
+        symbols = symbols[:max_symbols]
         screener = EXCHANGE_SCREENER.get(exchange, "crypto")
 
-        try:
-            analysis = get_multiple_analysis(
-                screener=screener,
-                interval=timeframe,
-                symbols=symbols
-            )
-        except Exception as e:
+        # Process in batches with rate limiting
+        all_analysis = {}
+        total_batches = (len(symbols) + API_BATCH_SIZE - 1) // API_BATCH_SIZE
+        failed_batches = 0
+        last_error = None
+
+        for i in range(0, len(symbols), API_BATCH_SIZE):
+            batch_symbols = symbols[i:i + API_BATCH_SIZE]
+
+            try:
+                batch_analysis = _throttled_api_call(
+                    get_multiple_analysis,
+                    screener=screener,
+                    interval=timeframe,
+                    symbols=batch_symbols
+                )
+                all_analysis.update(batch_analysis)
+            except Exception as e:
+                failed_batches += 1
+                last_error = e
+                logger.warning(f"Candle pattern batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
+                continue
+
+        # If all batches failed, return error
+        if failed_batches == total_batches and last_error is not None:
             return {
-                "error": f"TradingView API error: {str(e)}",
+                "error": _classify_api_error(last_error),
                 "exchange": exchange,
                 "timeframe": timeframe
             }
+
+        analysis = all_analysis
 
         if mode == "advanced":
             # Advanced pattern analysis with scoring
@@ -1594,14 +1810,26 @@ def volume_scanner(
     screener = EXCHANGE_SCREENER.get(exchange, "crypto")
     volume_breakouts = []
 
-    # Process in batches
-    batch_size = 100
-    for i in range(0, min(len(symbols), 500), batch_size):
-        batch_symbols = symbols[i:i + batch_size]
+    # Process in batches with rate limiting
+    max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN)
+    total_batches = (max_symbols + API_BATCH_SIZE - 1) // API_BATCH_SIZE
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, max_symbols, API_BATCH_SIZE):
+        batch_symbols = symbols[i:i + API_BATCH_SIZE]
 
         try:
-            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-        except Exception:
+            analysis = _throttled_api_call(
+                get_multiple_analysis,
+                screener=screener,
+                interval=timeframe,
+                symbols=batch_symbols
+            )
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Volume scanner batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
 
         for symbol, data in analysis.items():
@@ -1678,6 +1906,10 @@ def volume_scanner(
             except Exception:
                 continue
 
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort by volume strength, then price change
     volume_breakouts.sort(key=lambda x: (x["volume_strength"], abs(x["change_percent"])), reverse=True)
 
@@ -1708,7 +1940,12 @@ def volume_analysis(symbol: str, exchange: str = "KUCOIN", timeframe: str = "15m
 	screener = EXCHANGE_SCREENER.get(exchange, "crypto")
 
 	try:
-		analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=[symbol])
+		analysis = _throttled_api_call(
+			get_multiple_analysis,
+			screener=screener,
+			interval=timeframe,
+			symbols=[symbol]
+		)
 
 		if not analysis or symbol not in analysis:
 			return {"error": f"No data found for {symbol}"}
@@ -1860,14 +2097,26 @@ def pivot_points_scanner(
         "camarilla": "Pivot.M.Camarilla"
     }.get(pivot_type, "Pivot.M.Classic")
 
-    # Process in batches
-    batch_size = 100
-    for i in range(0, min(len(symbols), 500), batch_size):
-        batch_symbols = symbols[i:i + batch_size]
+    # Process in batches with rate limiting
+    max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN)
+    total_batches = (max_symbols + API_BATCH_SIZE - 1) // API_BATCH_SIZE
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, max_symbols, API_BATCH_SIZE):
+        batch_symbols = symbols[i:i + API_BATCH_SIZE]
 
         try:
-            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-        except Exception:
+            analysis = _throttled_api_call(
+                get_multiple_analysis,
+                screener=screener,
+                interval=timeframe,
+                symbols=batch_symbols
+            )
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"Pivot scanner batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
 
         for symbol, data in analysis.items():
@@ -1963,6 +2212,10 @@ def pivot_points_scanner(
             except Exception:
                 continue
 
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort by number of near levels (more levels = stronger signal)
     results.sort(key=lambda x: len(x["near_levels"]), reverse=True)
 
@@ -2024,14 +2277,26 @@ def tradingview_recommendation(
         else:
             return "STRONG_SELL"
 
-    # Process in batches
-    batch_size = 100
-    for i in range(0, min(len(symbols), 500), batch_size):
-        batch_symbols = symbols[i:i + batch_size]
+    # Process in batches with rate limiting
+    max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN)
+    total_batches = (max_symbols + API_BATCH_SIZE - 1) // API_BATCH_SIZE
+    failed_batches = 0
+    last_error = None
+
+    for i in range(0, max_symbols, API_BATCH_SIZE):
+        batch_symbols = symbols[i:i + API_BATCH_SIZE]
 
         try:
-            analysis = get_multiple_analysis(screener=screener, interval=timeframe, symbols=batch_symbols)
-        except Exception:
+            analysis = _throttled_api_call(
+                get_multiple_analysis,
+                screener=screener,
+                interval=timeframe,
+                symbols=batch_symbols
+            )
+        except Exception as e:
+            failed_batches += 1
+            last_error = e
+            logger.warning(f"TV recommendation batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
             continue
 
         for symbol, data in analysis.items():
@@ -2101,6 +2366,10 @@ def tradingview_recommendation(
             except Exception:
                 continue
 
+    # If all batches failed, raise an error with the last error message
+    if failed_batches == total_batches and last_error is not None:
+        raise RuntimeError(_classify_api_error(last_error))
+
     # Sort by signal strength (strongest first)
     results.sort(key=lambda x: x["signal_strength"], reverse=True)
 
@@ -2122,7 +2391,7 @@ def register_health_routes(server: FastMCP) -> None:
         return JSONResponse({
             "status": "healthy",
             "service": "sigmapilot-mcp",
-            "version": "1.2.0",
+            "version": "1.3.0",
         })
 
     @server.custom_route("/", methods=["GET"])
@@ -2131,7 +2400,7 @@ def register_health_routes(server: FastMCP) -> None:
         return JSONResponse({
             "status": "healthy",
             "service": "sigmapilot-mcp",
-            "version": "1.2.0",
+            "version": "1.3.0",
             "docs": "Use /health for health checks, /mcp for MCP protocol"
         })
 

@@ -561,29 +561,26 @@ SERVER_INSTRUCTIONS = """
 SigmaPilot MCP Server v2.0.0 - Real-time Cryptocurrency and Stock Market Analysis
 
 This server provides AI-powered technical analysis tools for market intelligence,
-featuring 9 theory-based analysis engines and 10 market screening tools.
+featuring 9 theory-based analyzers and 6 market scanners.
 
-Market Screening Tools (10):
-- top_gainers: Find best performing assets on an exchange
-- top_losers: Find worst performing assets on an exchange
-- bollinger_scan: Detect Bollinger Band squeeze patterns
-- rating_filter: Filter by Bollinger Band rating (-3 to +3)
-- coin_analysis: Complete technical analysis for a symbol
-- candle_pattern_scanner: Detect bullish/bearish candle patterns
+Market Scanners (6):
+- top_gainers_scanner: Find best performing assets on an exchange
+- top_losers_scanner: Find worst performing assets on an exchange
+- bollinger_scanner: Detect Bollinger Band squeeze patterns
+- rating_scanner: Filter by Bollinger Band rating (-3 to +3)
 - volume_scanner: Volume breakout detection with RSI filtering
-- volume_analysis: Detailed volume analysis for a symbol
 - pivot_points_scanner: Find coins near pivot point levels
-- tradingview_recommendation: TradingView buy/sell recommendations
 
-Theory-Based Analysis Engines (9):
-- dow_theory_trend: Dow Theory trend analysis (higher highs/lows)
-- ichimoku_insight: Ichimoku Kinko Hyo (cloud, TK cross, Chikou)
+Analyzers (10):
+- basic_ta_analyzer: Basic technical analysis with indicators and volume
+- dow_theory_analyzer: Dow Theory trend analysis (higher highs/lows)
+- ichimoku_analyzer: Ichimoku Kinko Hyo (cloud, TK cross, Chikou)
 - vsa_analyzer: Volume Spread Analysis (smart money signals)
-- chart_pattern_finder: Classical patterns (H&S, triangles, double top/bottom)
-- wyckoff_phase_detector: Wyckoff phases (accumulation/distribution)
+- chart_pattern_analyzer: Classical patterns (H&S, triangles, double top/bottom)
+- wyckoff_analyzer: Wyckoff phases (accumulation/distribution)
 - elliott_wave_analyzer: Elliott Wave patterns (impulse/corrective)
 - chan_theory_analyzer: Chan Theory/Chanlun (fractals, strokes, hubs)
-- harmonic_pattern_detector: Harmonic patterns (Gartley, Bat, Butterfly, Crab)
+- harmonic_analyzer: Harmonic patterns (Gartley, Bat, Butterfly, Crab)
 - market_profile_analyzer: Market Profile (POC, Value Area, profile shape)
 
 Supported Exchanges:

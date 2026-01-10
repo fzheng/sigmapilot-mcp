@@ -4,7 +4,57 @@ This document tracks development tasks, improvements, and known issues.
 
 ## Completed
 
-### v1.2.0 (Current)
+### v2.0.0 (Released)
+
+#### Phase 1: Core Infrastructure (Completed)
+- [x] Created core module architecture (`src/sigmapilot_mcp/core/`)
+- [x] Implemented confidence formula: `Base × Q_pattern × W_time × V_conf × M_bonus`
+- [x] Created No Signal Protocol (confidence < 60 = neutral)
+- [x] Built structured output schemas (TypedDict: `AnalysisResult`, `Attribution`)
+- [x] Created error handling hierarchy (`SigmaPilotError`, `DataError`, `APIError`, etc.)
+- [x] Built timeframe utilities with weights and hierarchy
+- [x] Created OHLCV data loader with NumPy array accessors
+- [x] Added input sanitization functions
+- [x] Created 159 unit tests for core modules
+- [x] Added deterministic OHLCV test fixtures
+- [x] Documented technical blockers in `TODO_BLOCKERS.md`
+
+#### Phase 2: Tier 1 Engines (Completed)
+- [x] Dow Theory Trend engine (`dow_theory.py`)
+- [x] Ichimoku Insight engine (`ichimoku.py`)
+- [x] VSA Analyzer engine (`vsa.py`)
+- [x] Chart Pattern Finder engine (`chart_patterns.py`)
+- [x] Created integration tests for all Tier 1 engines (200 total tests)
+
+#### Phase 3: Tier 2 Engines (Completed)
+- [x] Wyckoff Phase Detector (`wyckoff.py`)
+- [x] Elliott Wave Analyzer (`elliott_wave.py`)
+- [x] Chan Theory Analyzer (`chan_theory.py`)
+- [x] Harmonic Pattern Detector (`harmonic.py`)
+- [x] Market Profile Analyzer (`market_profile.py`)
+- [x] Created integration tests for all Tier 2 engines (240 total tests)
+
+#### Phase 4: Integration & Documentation (Completed)
+- [x] Register all 9 engines as MCP tools in server.py
+- [x] Updated tool count from 10 to 19
+- [x] Added helper function `_fetch_ohlcv_for_symbol()` for data conversion
+- [x] Removed unused legacy code (screener_provider.py, unused functions)
+- [x] Added comprehensive edge case tests (177 new tests)
+- [x] Created EXAMPLES.md with complete usage guide
+- [x] Updated all documentation for v2.0.0
+- [x] Total test coverage: 417 tests passing
+
+#### Future Enhancements (Backlog)
+- [ ] Multi-engine consensus calculations
+- [ ] End-to-end integration tests with live data
+
+### v1.3.0
+- [x] Added TradingView API rate limiting protection
+- [x] Implemented exponential backoff with jitter
+- [x] Configurable batch sizes via environment variables
+- [x] User-friendly error messages for rate limit scenarios
+
+### v1.2.0
 - [x] Added Ichimoku Cloud indicator (Tenkan-sen, Kijun-sen, Senkou Span A/B)
 - [x] Added VWAP (Volume Weighted Average Price)
 - [x] Added Pivot Points (Classic, Fibonacci, Camarilla) with R1-R3, S1-S3 levels
@@ -49,17 +99,29 @@ This document tracks development tasks, improvements, and known issues.
 ### Testing
 - [ ] Integration tests with mock market API
 - [ ] End-to-end tests for MCP tools
-
-### Infrastructure
-- [ ] Set up GitHub Actions for CI/CD
-- [ ] Add code coverage reporting to CI
-- [ ] Automated Railway deployment on push
+- [ ] Add tests for error response schema validation in theory-based tools
 
 ## Medium Priority
+
+### Code Quality (from v2.0.0 Code Review)
+- [ ] Remove duplicate constants between `validators.py` and `sanitize.py` (DRY violation)
+  - `ALLOWED_TIMEFRAMES` defined in both files
+  - `EXCHANGE_SCREENER` defined in both files
+  - Recommendation: Import from `sanitize.py` in `validators.py`
+- [ ] Standardize import patterns across engines
+  - Tier 1 engines use relative imports (`from ..core.x`)
+  - Tier 2 engines use absolute imports (`from sigmapilot_mcp.core.x`)
+  - Recommendation: Standardize all to relative imports
+- [ ] Improve `has_volume` property in `data_loader.py` to check volume coverage percentage
+  - Currently returns True if ANY bar has volume
+  - Should check if majority (e.g., 80%+) have volume
+- [ ] Add bounds checking in swing point detection (`dow_theory.py` lines 150-179)
+- [ ] Improve NaN handling in Ichimoku functions (`ichimoku.py` lines 260-263)
 
 ### Documentation
 - [ ] Add API reference documentation
 - [ ] Add troubleshooting guide for Auth0
+- [ ] Add docstrings to internal helper functions in engine files
 
 ### Code Organization
 - [ ] Break down large functions (e.g., `coin_analysis` is 137 lines)
@@ -69,6 +131,10 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] Add `functools.lru_cache` to `load_symbols()` for disk I/O caching
 - [ ] Profile API call patterns for optimization opportunities
 - [ ] Consider batch size optimization based on exchange
+- [ ] Improve OHLCVData cache invalidation (prevent bypassing via direct `bars` list manipulation)
+
+### Security
+- [ ] Add file size validation for CSV loading in `data_loader.py` (prevent memory exhaustion)
 
 ## Low Priority
 
@@ -85,6 +151,7 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] WebSocket support for real-time data
 - [ ] Multiple auth provider support (Google, GitHub)
 - [ ] Additional data sources beyond TradingView
+- [ ] Multi-engine consensus calculations (aggregate signals from multiple engines)
 
 ## Notes
 

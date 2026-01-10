@@ -677,17 +677,142 @@ mcp = FastMCP(
 
 
 # =============================================================================
-# MCP Tools - Market Screening
+# Helper Functions for Analysis
+# =============================================================================
+
+def _compute_volume_analysis(indicators: dict, close: float, open_price: float) -> dict:
+    """Compute volume analysis metrics from TradingView indicators.
+
+    Args:
+        indicators: TradingView indicator dictionary
+        close: Current close price
+        open_price: Current open price
+
+    Returns:
+        Volume analysis dictionary with strength, signals, and confirmation
+    """
+    volume = indicators.get('volume', 0)
+    sma20_volume = indicators.get('volume.SMA20', 0)
+    volume_ratio = volume / sma20_volume if sma20_volume > 0 else 1.0
+
+    # Calculate price metrics
+    price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
+
+    # Volume strength assessment
+    if volume_ratio >= 3.0:
+        volume_strength = "VERY_STRONG"
+    elif volume_ratio >= 2.0:
+        volume_strength = "STRONG"
+    elif volume_ratio >= 1.5:
+        volume_strength = "ABOVE_AVERAGE"
+    elif volume_ratio >= 1.0:
+        volume_strength = "NORMAL"
+    elif volume_ratio >= 0.5:
+        volume_strength = "BELOW_AVERAGE"
+    else:
+        volume_strength = "WEAK"
+
+    # Generate volume signals
+    signals = []
+
+    # Strong volume + price breakout
+    if volume_ratio >= 2.0 and abs(price_change) >= 3.0:
+        direction = "bullish" if price_change > 0 else "bearish"
+        signals.append({
+            "type": "BREAKOUT_CONFIRMED",
+            "direction": direction,
+            "description": f"Strong {direction} breakout with {volume_ratio:.1f}x volume"
+        })
+
+    # Volume divergence (high volume, low price movement)
+    if volume_ratio >= 1.5 and abs(price_change) < 1.0:
+        signals.append({
+            "type": "VOLUME_DIVERGENCE",
+            "direction": "neutral",
+            "description": f"High volume ({volume_ratio:.1f}x) without price follow-through"
+        })
+
+    # Weak signal (price move without volume)
+    if abs(price_change) >= 2.0 and volume_ratio < 0.8:
+        signals.append({
+            "type": "WEAK_MOVE",
+            "direction": "warning",
+            "description": f"Price moved {price_change:.1f}% but volume is low ({volume_ratio:.1f}x)"
+        })
+
+    # BB breakout + volume confirmation
+    bb_upper = indicators.get('BB.upper', 0)
+    bb_lower = indicators.get('BB.lower', 0)
+    if bb_upper and close > bb_upper and volume_ratio >= 1.5:
+        signals.append({
+            "type": "BB_BREAKOUT_CONFIRMED",
+            "direction": "bullish",
+            "description": "Upper Bollinger Band breakout with volume confirmation"
+        })
+    elif bb_lower and close < bb_lower and volume_ratio >= 1.5:
+        signals.append({
+            "type": "BB_BREAKDOWN_CONFIRMED",
+            "direction": "bearish",
+            "description": "Lower Bollinger Band breakdown with volume confirmation"
+        })
+
+    # RSI + Volume extremes
+    rsi = indicators.get('RSI', 50)
+    if rsi > 70 and volume_ratio >= 2.0:
+        signals.append({
+            "type": "OVERBOUGHT_VOLUME",
+            "direction": "warning",
+            "description": f"Overbought RSI ({rsi:.1f}) with high volume - potential exhaustion"
+        })
+    elif rsi < 30 and volume_ratio >= 2.0:
+        signals.append({
+            "type": "OVERSOLD_VOLUME",
+            "direction": "bullish",
+            "description": f"Oversold RSI ({rsi:.1f}) with high volume - potential reversal"
+        })
+
+    # Volume confirmation assessment
+    if volume_ratio >= 1.5 and abs(price_change) >= 1.0:
+        if (price_change > 0 and volume_ratio >= 1.5) or (price_change < 0 and volume_ratio >= 1.5):
+            confirmation = "CONFIRMED"
+        else:
+            confirmation = "PARTIAL"
+    elif volume_ratio < 0.8 and abs(price_change) >= 2.0:
+        confirmation = "UNCONFIRMED"
+    else:
+        confirmation = "NEUTRAL"
+
+    return {
+        "current_volume": volume,
+        "average_volume_20": sma20_volume,
+        "volume_ratio": round(volume_ratio, 2),
+        "volume_strength": volume_strength,
+        "price_change_percent": round(price_change, 2),
+        "confirmation": confirmation,
+        "signals": signals,
+        "assessment": {
+            "bullish_signals": len([s for s in signals if s["direction"] == "bullish"]),
+            "bearish_signals": len([s for s in signals if s["direction"] == "bearish"]),
+            "warning_signals": len([s for s in signals if s["direction"] == "warning"])
+        }
+    }
+
+
+# =============================================================================
+# MCP Tools - Market Screening (Scanners)
 # =============================================================================
 
 @mcp.tool()
-def top_gainers(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 25) -> list[dict]:
-    """Return top gainers for an exchange and timeframe using bollinger band analysis.
-    
+def top_gainers_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 25) -> list[dict]:
+    """Scan for top gaining symbols on an exchange using bollinger band analysis.
+
     Args:
         exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
         timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
         limit: Number of rows to return (max 50)
+
+    Returns:
+        List of top gaining symbols with price change and indicators
     """
     exchange = sanitize_exchange(exchange, "KUCOIN")
     timeframe = sanitize_timeframe(timeframe, "15m")
@@ -703,8 +828,17 @@ def top_gainers(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 2
 
 
 @mcp.tool()
-def top_losers(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 25) -> list[dict]:
-    """Return top losers for an exchange and timeframe using bollinger band analysis."""
+def top_losers_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 25) -> list[dict]:
+    """Scan for top losing symbols on an exchange using bollinger band analysis.
+
+    Args:
+        exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
+        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
+        limit: Number of rows to return (max 50)
+
+    Returns:
+        List of top losing symbols with price change and indicators
+    """
     exchange = sanitize_exchange(exchange, "KUCOIN")
     timeframe = sanitize_timeframe(timeframe, "15m")
     limit = max(1, min(limit, 50))
@@ -722,14 +856,20 @@ def top_losers(exchange: str = "KUCOIN", timeframe: str = "15m", limit: int = 25
 
 
 @mcp.tool()
-def bollinger_scan(exchange: str = "KUCOIN", timeframe: str = "4h", bbw_threshold: float = 0.04, limit: int = 50) -> list[dict]:
-    """Scan for coins with low Bollinger Band Width (squeeze detection).
-    
+def bollinger_scanner(exchange: str = "KUCOIN", timeframe: str = "4h", bbw_threshold: float = 0.04, limit: int = 50) -> list[dict]:
+    """Scan for symbols with low Bollinger Band Width (squeeze detection).
+
+    Identifies symbols in a volatility squeeze, which often precedes
+    significant price moves.
+
     Args:
         exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
-        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M  
+        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
         bbw_threshold: Maximum BBW value to filter (default 0.04)
         limit: Number of rows to return (max 100)
+
+    Returns:
+        List of symbols with tight Bollinger Bands (potential breakout candidates)
     """
     exchange = sanitize_exchange(exchange, "KUCOIN")
     timeframe = sanitize_timeframe(timeframe, "4h")
@@ -745,14 +885,21 @@ def bollinger_scan(exchange: str = "KUCOIN", timeframe: str = "4h", bbw_threshol
 
 
 @mcp.tool()
-def rating_filter(exchange: str = "KUCOIN", timeframe: str = "15m", rating: int = 2, limit: int = 25) -> list[dict]:
-    """Filter coins by Bollinger Band rating.
+def rating_scanner(exchange: str = "KUCOIN", timeframe: str = "15m", rating: int = 2, limit: int = 25) -> list[dict]:
+    """Scan for symbols by Bollinger Band rating.
+
+    Filters symbols based on their technical rating derived from
+    Bollinger Band analysis.
 
     Args:
         exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
         timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
-        rating: BB rating (-3 to +3): -3=Strong Sell, -2=Sell, -1=Weak Sell, 1=Weak Buy, 2=Buy, 3=Strong Buy
+        rating: BB rating (-3 to +3): -3=Strong Sell, -2=Sell, -1=Weak Sell,
+                1=Weak Buy, 2=Buy, 3=Strong Buy
         limit: Number of rows to return (max 50)
+
+    Returns:
+        List of symbols matching the specified rating criteria
     """
     exchange = sanitize_exchange(exchange, "KUCOIN")
     timeframe = sanitize_timeframe(timeframe, "15m")
@@ -772,20 +919,35 @@ def rating_filter(exchange: str = "KUCOIN", timeframe: str = "15m", rating: int 
 # =============================================================================
 
 @mcp.tool()
-def coin_analysis(
+def basic_ta_analyzer(
     symbol: str,
     exchange: str = "KUCOIN",
     timeframe: str = "15m"
 ) -> dict:
-    """Get detailed analysis for a specific coin on specified exchange and timeframe.
-    
+    """Basic technical analysis for a specific symbol using TradingView indicators.
+
+    Provides a comprehensive snapshot of standard technical indicators including
+    price data, Bollinger Bands, Ichimoku Cloud, pivot points, oscillators,
+    moving averages, and volume analysis. This is a foundational analysis tool
+    that returns raw indicator values - for sophisticated theory-based analysis,
+    use the v2.0 analyzers (dow_theory_analyzer, ichimoku_analyzer, etc.).
+
     Args:
-        symbol: Coin symbol (e.g., "ACEUSDT", "BTCUSDT")
-        exchange: Exchange name (BINANCE, KUCOIN, etc.) 
+        symbol: Trading symbol (e.g., "BTCUSDT", "ETHUSDT")
+        exchange: Exchange name (BINANCE, KUCOIN, BYBIT, etc.)
         timeframe: Time interval (5m, 15m, 1h, 4h, 1D, 1W, 1M)
-    
+
     Returns:
-        Detailed coin analysis with all indicators and metrics
+        Comprehensive technical analysis including:
+        - price_data: OHLCV and VWAP
+        - bollinger_analysis: BB rating, signal, width, position
+        - ichimoku_cloud: All 5 lines with signals
+        - pivot_points: Classic, Fibonacci, Camarilla levels
+        - oscillators: RSI, Williams %R, CCI, Stochastic, etc.
+        - moving_averages: SMA/EMA at multiple periods
+        - trend_indicators: MACD, ADX, Parabolic SAR
+        - volume_analysis: Volume ratio, strength, and signals
+        - market_sentiment: Overall rating and trend alignment
     """
     try:
         exchange = sanitize_exchange(exchange, "KUCOIN")
@@ -1141,6 +1303,7 @@ def coin_analysis(
                     },
                     "atr": round(indicators.get("ATR", 0), 6)
                 },
+                "volume_analysis": _compute_volume_analysis(indicators, close_price, open_price),
                 "market_sentiment": {
                     "overall_rating": metrics['rating'],
                     "buy_sell_signal": metrics['signal'],
@@ -1169,490 +1332,6 @@ def coin_analysis(
             "exchange": exchange,
             "timeframe": timeframe
         }
-
-# =============================================================================
-# MCP Tools - Pattern Detection
-# =============================================================================
-
-@mcp.tool()
-def candle_pattern_scanner(
-    exchange: str = "KUCOIN",
-    timeframe: str = "15m",
-    mode: str = "consecutive",
-    pattern_type: str = "bullish",
-    min_change: float = 2.0,
-    limit: int = 20
-) -> dict:
-    """Scan for candle patterns including consecutive candles and advanced patterns.
-
-    Combines consecutive candle detection and advanced pattern analysis into a
-    single unified tool. Use the 'mode' parameter to select analysis type.
-
-    Args:
-        exchange: Exchange name (BINANCE, KUCOIN, BYBIT, etc.)
-        timeframe: Time interval (5m, 15m, 1h, 4h, 1D)
-        mode: Analysis mode:
-            - "consecutive": Detect consecutive bullish/bearish candles
-            - "advanced": Advanced multi-timeframe pattern scoring
-        pattern_type: For consecutive mode - "bullish" or "bearish"
-        min_change: Minimum price change % for pattern detection (default 2.0)
-        limit: Maximum number of results (max 50)
-
-    Returns:
-        Dictionary with pattern results including:
-        - exchange, timeframe, mode settings
-        - total_found: Number of patterns detected
-        - data: List of coins with pattern details
-    """
-    try:
-        exchange = sanitize_exchange(exchange, "KUCOIN")
-        timeframe = sanitize_timeframe(timeframe, "15m")
-        min_change = max(0.5, min(20.0, min_change))
-        limit = max(1, min(50, limit))
-
-        # Get symbols for the exchange
-        symbols = load_symbols(exchange)
-        if not symbols:
-            return {
-                "error": f"No symbols found for exchange: {exchange}",
-                "exchange": exchange,
-                "timeframe": timeframe
-            }
-
-        # Limit symbols for performance (use configured max)
-        max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN, limit * 3)
-        symbols = symbols[:max_symbols]
-        screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-
-        # Process in batches with rate limiting
-        all_analysis = {}
-        total_batches = (len(symbols) + API_BATCH_SIZE - 1) // API_BATCH_SIZE
-        failed_batches = 0
-        last_error = None
-
-        for i in range(0, len(symbols), API_BATCH_SIZE):
-            batch_symbols = symbols[i:i + API_BATCH_SIZE]
-
-            try:
-                batch_analysis = _throttled_api_call(
-                    get_multiple_analysis,
-                    screener=screener,
-                    interval=timeframe,
-                    symbols=batch_symbols
-                )
-                all_analysis.update(batch_analysis)
-            except Exception as e:
-                failed_batches += 1
-                last_error = e
-                logger.warning(f"Candle pattern batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
-                continue
-
-        # If all batches failed, return error
-        if failed_batches == total_batches and last_error is not None:
-            return {
-                "error": _classify_api_error(last_error),
-                "exchange": exchange,
-                "timeframe": timeframe
-            }
-
-        analysis = all_analysis
-
-        if mode == "advanced":
-            # Advanced pattern analysis with scoring
-            return _scan_advanced_patterns(
-                analysis, exchange, timeframe, min_change, limit
-            )
-        else:
-            # Default: Consecutive candle pattern detection
-            return _scan_consecutive_patterns(
-                analysis, exchange, timeframe, pattern_type, min_change, limit
-            )
-
-    except Exception as e:
-        return {
-            "error": f"Candle pattern scan failed: {str(e)}",
-            "exchange": exchange,
-            "timeframe": timeframe
-        }
-
-
-def _scan_consecutive_patterns(
-    analysis: dict,
-    exchange: str,
-    timeframe: str,
-    pattern_type: str,
-    min_change: float,
-    limit: int
-) -> dict:
-    """
-    Scan for consecutive bullish/bearish candle patterns.
-
-    Analyzes current candle characteristics along with technical indicators
-    to identify symbols showing strong momentum patterns.
-
-    Args:
-        analysis: TradingView analysis results dictionary
-        exchange: Exchange name
-        timeframe: Analysis timeframe
-        pattern_type: "bullish" or "bearish"
-        min_change: Minimum price change threshold
-        limit: Maximum results to return
-
-    Returns:
-        Dictionary with pattern results
-    """
-    pattern_coins = []
-
-    for symbol, data in analysis.items():
-        if data is None:
-            continue
-
-        try:
-            indicators = data.indicators
-
-            # Calculate current candle metrics
-            open_price = indicators.get("open")
-            close_price = indicators.get("close")
-            high_price = indicators.get("high")
-            low_price = indicators.get("low")
-            volume = indicators.get("volume", 0)
-
-            if not all([open_price, close_price, high_price, low_price]):
-                continue
-
-            # Calculate candle metrics
-            current_change = ((close_price - open_price) / open_price) * 100
-            candle_body = abs(close_price - open_price)
-            candle_range = high_price - low_price
-            body_to_range_ratio = candle_body / candle_range if candle_range > 0 else 0
-
-            # Get momentum indicators
-            rsi = indicators.get("RSI", 50)
-            sma20 = indicators.get("SMA20", close_price)
-            ema50 = indicators.get("EMA50", close_price)
-            price_above_sma = close_price > sma20
-            price_above_ema = close_price > ema50
-
-            # Pattern detection logic
-            pattern_detected = False
-            pattern_strength = 0
-
-            if pattern_type == "bullish":
-                conditions = [
-                    current_change > min_change,
-                    body_to_range_ratio > 0.6,
-                    price_above_sma,
-                    rsi > 45 and rsi < 80,
-                    volume > 1000
-                ]
-                pattern_strength = sum(conditions)
-                pattern_detected = pattern_strength >= 3
-
-            elif pattern_type == "bearish":
-                conditions = [
-                    current_change < -min_change,
-                    body_to_range_ratio > 0.6,
-                    not price_above_sma,
-                    rsi < 55 and rsi > 20,
-                    volume > 1000
-                ]
-                pattern_strength = sum(conditions)
-                pattern_detected = pattern_strength >= 3
-
-            if pattern_detected:
-                metrics = compute_metrics(indicators)
-
-                pattern_coins.append({
-                    "symbol": symbol,
-                    "price": round(close_price, 6),
-                    "change_percent": round(current_change, 3),
-                    "body_ratio": round(body_to_range_ratio, 3),
-                    "pattern_strength": pattern_strength,
-                    "volume": volume,
-                    "bollinger_rating": metrics.get('rating', 0) if metrics else 0,
-                    "rsi": round(rsi, 2),
-                    "price_levels": {
-                        "open": round(open_price, 6),
-                        "high": round(high_price, 6),
-                        "low": round(low_price, 6),
-                        "close": round(close_price, 6)
-                    },
-                    "momentum": {
-                        "above_sma20": price_above_sma,
-                        "above_ema50": price_above_ema,
-                        "strong_volume": volume > 5000
-                    }
-                })
-
-        except Exception:
-            continue
-
-    # Sort by pattern strength and change
-    if pattern_type == "bullish":
-        pattern_coins.sort(key=lambda x: (x['pattern_strength'], x['change_percent']), reverse=True)
-    else:
-        pattern_coins.sort(key=lambda x: (x['pattern_strength'], -x['change_percent']), reverse=True)
-
-    return {
-        "exchange": exchange,
-        "timeframe": timeframe,
-        "mode": "consecutive",
-        "pattern_type": pattern_type,
-        "min_change": min_change,
-        "total_found": len(pattern_coins),
-        "data": pattern_coins[:limit]
-    }
-
-
-def _scan_advanced_patterns(
-    analysis: dict,
-    exchange: str,
-    timeframe: str,
-    min_change: float,
-    limit: int
-) -> dict:
-    """
-    Advanced pattern analysis with multi-factor scoring.
-
-    Uses candle body ratio, momentum, volume, and trend alignment to
-    score pattern strength.
-
-    Args:
-        analysis: TradingView analysis results dictionary
-        exchange: Exchange name
-        timeframe: Analysis timeframe
-        min_change: Minimum change threshold for strong momentum
-        limit: Maximum results to return
-
-    Returns:
-        Dictionary with scored pattern results
-    """
-    pattern_results = []
-
-    for symbol, data in analysis.items():
-        if data is None:
-            continue
-
-        try:
-            indicators = data.indicators
-            pattern_score = _calculate_candle_pattern_score(indicators, 3, min_change)
-
-            if pattern_score['detected']:
-                metrics = compute_metrics(indicators)
-
-                pattern_results.append({
-                    "symbol": symbol,
-                    "pattern_score": pattern_score['score'],
-                    "pattern_details": pattern_score['details'],
-                    "price": pattern_score['price'],
-                    "change_percent": pattern_score['total_change'],
-                    "body_ratio": pattern_score['body_ratio'],
-                    "volume": pattern_score['volume'],
-                    "bollinger_rating": metrics.get('rating', 0) if metrics else 0,
-                    "technical": {
-                        "rsi": round(indicators.get("RSI", 50), 2),
-                        "momentum": "Strong" if abs(pattern_score['total_change']) > min_change else "Moderate",
-                        "volume_level": "High" if pattern_score['volume'] > 10000 else "Normal"
-                    }
-                })
-
-        except Exception:
-            continue
-
-    # Sort by pattern score
-    pattern_results.sort(key=lambda x: (x['pattern_score'], abs(x['change_percent'])), reverse=True)
-
-    return {
-        "exchange": exchange,
-        "timeframe": timeframe,
-        "mode": "advanced",
-        "min_change": min_change,
-        "total_found": len(pattern_results),
-        "data": pattern_results[:limit]
-    }
-
-def _calculate_candle_pattern_score(indicators: dict, pattern_length: int, min_increase: float) -> dict:
-    """
-    Calculate a pattern detection score based on candle and indicator data.
-
-    Analyzes current candle characteristics (body ratio, price change) along with
-    technical indicators (RSI, EMA) to score the strength of a potential pattern.
-
-    Args:
-        indicators: Dictionary of TradingView indicator values
-        pattern_length: Number of consecutive periods (used for context)
-        min_increase: Minimum price change threshold for "strong momentum"
-
-    Returns:
-        Dictionary containing:
-            - detected: Boolean indicating if pattern meets threshold
-            - score: Numeric score (0-7+) based on conditions met
-            - details: List of human-readable condition descriptions
-            - price: Current close price
-            - total_change: Percentage price change
-            - body_ratio: Candle body to range ratio
-            - volume: Current volume
-    """
-    try:
-        open_price = indicators.get("open", 0)
-        close_price = indicators.get("close", 0)
-        high_price = indicators.get("high", 0)
-        low_price = indicators.get("low", 0)
-        volume = indicators.get("volume", 0)
-        rsi = indicators.get("RSI", 50)
-        
-        if not all([open_price, close_price, high_price, low_price]):
-            return {"detected": False, "score": 0}
-        
-        # Current candle analysis
-        candle_body = abs(close_price - open_price)
-        candle_range = high_price - low_price
-        body_ratio = candle_body / candle_range if candle_range > 0 else 0
-        
-        # Price change
-        price_change = ((close_price - open_price) / open_price) * 100
-        
-        # Pattern scoring
-        score = 0
-        details = []
-        
-        # Strong candle body
-        if body_ratio > 0.7:
-            score += 2
-            details.append("Strong candle body")
-        elif body_ratio > 0.5:
-            score += 1
-            details.append("Moderate candle body")
-        
-        # Significant price movement
-        if abs(price_change) >= min_increase:
-            score += 2
-            details.append(f"Strong momentum ({price_change:.1f}%)")
-        elif abs(price_change) >= min_increase / 2:
-            score += 1
-            details.append(f"Moderate momentum ({price_change:.1f}%)")
-        
-        # Volume confirmation
-        if volume > 5000:
-            score += 1
-            details.append("Good volume")
-        
-        # RSI momentum
-        if (price_change > 0 and 50 < rsi < 80) or (price_change < 0 and 20 < rsi < 50):
-            score += 1
-            details.append("RSI momentum aligned")
-        
-        # Trend consistency (using EMA vs price)
-        ema50 = indicators.get("EMA50", close_price)
-        if (price_change > 0 and close_price > ema50) or (price_change < 0 and close_price < ema50):
-            score += 1
-            details.append("Trend alignment")
-        
-        detected = score >= 3  # Minimum threshold
-        
-        return {
-            "detected": detected,
-            "score": score,
-            "details": details,
-            "price": round(close_price, 6),
-            "total_change": round(price_change, 3),
-            "body_ratio": round(body_ratio, 3),
-            "volume": volume
-        }
-        
-    except Exception as e:
-        return {"detected": False, "score": 0, "error": str(e)}
-
-def _fetch_multi_timeframe_patterns(exchange: str, symbols: List[str], base_tf: str, length: int, min_increase: float) -> List[dict]:
-    """
-    Fetch and analyze multi-timeframe patterns using tradingview-screener.
-
-    Queries TradingView's screener API for OHLC and indicator data, then
-    applies pattern scoring to identify symbols with strong patterns.
-
-    Args:
-        exchange: Exchange name (e.g., "KUCOIN", "BINANCE")
-        symbols: List of symbols to analyze
-        base_tf: Base timeframe for analysis (e.g., "15m", "1h")
-        length: Pattern length parameter passed to scoring
-        min_increase: Minimum increase threshold for pattern detection
-
-    Returns:
-        List of dictionaries with pattern scores, sorted by score descending.
-        Each entry contains symbol, pattern_score, price, change, etc.
-    """
-    try:
-        from tradingview_screener import Query
-        from tradingview_screener.column import Column
-        
-        # Map timeframe to TradingView format
-        tf_map = {"5m": "5", "15m": "15", "1h": "60", "4h": "240", "1D": "1D"}
-        tv_interval = tf_map.get(base_tf, "15")
-        
-        # Create query for OHLC data
-        cols = [
-            f"open|{tv_interval}",
-            f"close|{tv_interval}", 
-            f"high|{tv_interval}",
-            f"low|{tv_interval}",
-            f"volume|{tv_interval}",
-            "RSI"
-        ]
-        
-        q = Query().set_markets("crypto").select(*cols)
-        q = q.where(Column("exchange") == exchange.upper())
-        q = q.limit(len(symbols))
-        
-        total, df = q.get_scanner_data()
-        
-        if df is None or df.empty:
-            return []
-        
-        results = []
-        
-        for _, row in df.iterrows():
-            symbol = row.get("ticker", "")
-            
-            try:
-                open_val = row.get(f"open|{tv_interval}")
-                close_val = row.get(f"close|{tv_interval}")
-                high_val = row.get(f"high|{tv_interval}")
-                low_val = row.get(f"low|{tv_interval}")
-                volume_val = row.get(f"volume|{tv_interval}", 0)
-                rsi_val = row.get("RSI", 50)
-                
-                if not all([open_val, close_val, high_val, low_val]):
-                    continue
-                
-                # Calculate pattern metrics
-                pattern_score = _calculate_candle_pattern_score({
-                    "open": open_val,
-                    "close": close_val,
-                    "high": high_val,
-                    "low": low_val,
-                    "volume": volume_val,
-                    "RSI": rsi_val
-                }, length, min_increase)
-                
-                if pattern_score['detected']:
-                    results.append({
-                        "symbol": symbol,
-                        "pattern_score": pattern_score['score'],
-                        "price": pattern_score['price'],
-                        "change": pattern_score['total_change'],
-                        "body_ratio": pattern_score['body_ratio'],
-                        "volume": volume_val,
-                        "rsi": round(rsi_val, 2),
-                        "details": pattern_score['details']
-                    })
-                    
-            except Exception as e:
-                continue
-        
-        return sorted(results, key=lambda x: x['pattern_score'], reverse=True)
-        
-    except Exception as e:
-        return []
 
 # =============================================================================
 # MCP Resources
@@ -1850,137 +1529,6 @@ def volume_scanner(
     return volume_breakouts[:limit]
 
 
-@mcp.tool()
-def volume_analysis(symbol: str, exchange: str = "KUCOIN", timeframe: str = "15m") -> dict:
-	"""Detailed volume confirmation analysis for a specific coin.
-
-	Analyzes volume patterns in relation to price movements to identify
-	confirmed breakouts, divergences, and weak signals.
-
-	Args:
-		symbol: Coin symbol (e.g., BTCUSDT)
-		exchange: Exchange name
-		timeframe: Time frame for analysis
-
-	Returns:
-		Detailed volume analysis with signals and recommendations
-	"""
-	exchange = sanitize_exchange(exchange, "KUCOIN")
-	timeframe = sanitize_timeframe(timeframe, "15m")
-
-	if not symbol.upper().endswith('USDT'):
-		symbol = symbol.upper() + 'USDT'
-
-	screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-
-	try:
-		analysis = _throttled_api_call(
-			get_multiple_analysis,
-			screener=screener,
-			interval=timeframe,
-			symbols=[symbol]
-		)
-
-		if not analysis or symbol not in analysis:
-			return {"error": f"No data found for {symbol}"}
-
-		data = analysis[symbol]
-		if not data or not hasattr(data, 'indicators'):
-			return {"error": f"No indicator data for {symbol}"}
-
-		indicators = data.indicators
-
-		# Get volume data
-		volume = indicators.get('volume', 0)
-		close = indicators.get('close', 0)
-		open_price = indicators.get('open', 0)
-		high = indicators.get('high', 0)
-		low = indicators.get('low', 0)
-
-		# Calculate price metrics
-		price_change = ((close - open_price) / open_price) * 100 if open_price > 0 else 0
-		candle_range = ((high - low) / low) * 100 if low > 0 else 0
-
-		# Volume analysis
-		sma20_volume = indicators.get('volume.SMA20', 0)
-		volume_ratio = volume / sma20_volume if sma20_volume > 0 else 1
-
-		# Technical indicators
-		rsi = indicators.get('RSI', 50)
-		bb_upper = indicators.get('BB.upper', 0)
-		bb_lower = indicators.get('BB.lower', 0)
-		bb_middle = (bb_upper + bb_lower) / 2 if bb_upper and bb_lower else close
-
-		# Volume confirmation signals
-		signals = []
-
-		# Strong volume + price breakout
-		if volume_ratio >= 2.0 and abs(price_change) >= 3.0:
-			signals.append(f"STRONG BREAKOUT: {volume_ratio:.1f}x volume + {price_change:.1f}% price")
-
-		# Volume divergence
-		if volume_ratio >= 1.5 and abs(price_change) < 1.0:
-			signals.append(f"VOLUME DIVERGENCE: High volume ({volume_ratio:.1f}x) but low price movement")
-
-		# Low volume on price move (weak signal)
-		if abs(price_change) >= 2.0 and volume_ratio < 0.8:
-			signals.append(f"WEAK SIGNAL: Price moved but volume is low ({volume_ratio:.1f}x)")
-
-		# Bollinger Band + Volume confirmation
-		if close > bb_upper and volume_ratio >= 1.5:
-			signals.append(f"BB BREAKOUT CONFIRMED: Upper band breakout + volume confirmation")
-		elif close < bb_lower and volume_ratio >= 1.5:
-			signals.append(f"BB SELL CONFIRMED: Lower band breakout + volume confirmation")
-
-		# RSI + Volume analysis
-		if rsi > 70 and volume_ratio >= 2.0:
-			signals.append(f"OVERBOUGHT + VOLUME: RSI {rsi:.1f} + {volume_ratio:.1f}x volume")
-		elif rsi < 30 and volume_ratio >= 2.0:
-			signals.append(f"OVERSOLD + VOLUME: RSI {rsi:.1f} + {volume_ratio:.1f}x volume")
-
-		# Overall assessment
-		if volume_ratio >= 3.0:
-			volume_strength = "VERY STRONG"
-		elif volume_ratio >= 2.0:
-			volume_strength = "STRONG"
-		elif volume_ratio >= 1.5:
-			volume_strength = "MEDIUM"
-		elif volume_ratio >= 1.0:
-			volume_strength = "NORMAL"
-		else:
-			volume_strength = "WEAK"
-
-		return {
-			"symbol": symbol,
-			"price_data": {
-				"close": close,
-				"change_percent": round(price_change, 2),
-				"candle_range_percent": round(candle_range, 2)
-			},
-			"volume_analysis": {
-				"current_volume": volume,
-				"volume_ratio": round(volume_ratio, 2),
-				"volume_strength": volume_strength,
-				"average_volume": sma20_volume
-			},
-			"technical_indicators": {
-				"RSI": round(rsi, 1),
-				"BB_position": "ABOVE" if close > bb_upper else "BELOW" if close < bb_lower else "WITHIN",
-				"BB_upper": bb_upper,
-				"BB_lower": bb_lower
-			},
-			"signals": signals,
-			"overall_assessment": {
-				"bullish_signals": len([s for s in signals if "BREAKOUT" in s or "OVERSOLD" in s]),
-				"bearish_signals": len([s for s in signals if "SELL" in s or "WEAK" in s]),
-				"warning_signals": len([s for s in signals if "DIVERGENCE" in s])
-			}
-		}
-
-	except Exception as e:
-		return {"error": f"Analysis failed: {str(e)}"}
-
-
 # =============================================================================
 # MCP Tools - Advanced Indicator Scanners
 # =============================================================================
@@ -2156,162 +1704,8 @@ def pivot_points_scanner(
     return results[:limit]
 
 
-@mcp.tool()
-def tradingview_recommendation(
-    exchange: str = "KUCOIN",
-    timeframe: str = "15m",
-    signal_filter: str = "STRONG_BUY",
-    min_strength: float = 0.5,
-    limit: int = 25
-) -> list[dict]:
-    """Scan for coins based on TradingView's technical analysis recommendations.
-
-    Uses TradingView's built-in technical analysis engine which combines
-    multiple indicators (MAs, oscillators) to generate Buy/Sell signals.
-
-    Args:
-        exchange: Exchange name like KUCOIN, BINANCE, BYBIT, etc.
-        timeframe: One of 5m, 15m, 1h, 4h, 1D, 1W, 1M
-        signal_filter: Filter by signal type:
-            - "STRONG_BUY": Recommendation >= 0.5
-            - "BUY": Recommendation >= 0.1
-            - "NEUTRAL": Recommendation between -0.1 and 0.1
-            - "SELL": Recommendation <= -0.1
-            - "STRONG_SELL": Recommendation <= -0.5
-            - "any": All signals
-        min_strength: Minimum absolute recommendation value (0.0 to 1.0)
-        limit: Number of results (max 50)
-
-    Returns:
-        List of coins matching recommendation criteria with detailed signals
-    """
-    exchange = sanitize_exchange(exchange, "KUCOIN")
-    timeframe = sanitize_timeframe(timeframe, "15m")
-    min_strength = max(0.0, min(1.0, min_strength))
-    limit = max(1, min(limit, 50))
-
-    # Get symbols
-    symbols = load_symbols(exchange)
-    if not symbols:
-        return []
-
-    screener = EXCHANGE_SCREENER.get(exchange, "crypto")
-    results = []
-
-    def get_signal_text(value):
-        """Convert recommendation value to signal text."""
-        if value >= 0.5:
-            return "STRONG_BUY"
-        elif value >= 0.1:
-            return "BUY"
-        elif value > -0.1:
-            return "NEUTRAL"
-        elif value > -0.5:
-            return "SELL"
-        else:
-            return "STRONG_SELL"
-
-    # Process in batches with rate limiting
-    max_symbols = min(len(symbols), API_MAX_SYMBOLS_PER_SCAN)
-    total_batches = (max_symbols + API_BATCH_SIZE - 1) // API_BATCH_SIZE
-    failed_batches = 0
-    last_error = None
-
-    for i in range(0, max_symbols, API_BATCH_SIZE):
-        batch_symbols = symbols[i:i + API_BATCH_SIZE]
-
-        try:
-            analysis = _throttled_api_call(
-                get_multiple_analysis,
-                screener=screener,
-                interval=timeframe,
-                symbols=batch_symbols
-            )
-        except Exception as e:
-            failed_batches += 1
-            last_error = e
-            logger.warning(f"TV recommendation batch {i // API_BATCH_SIZE + 1}/{total_batches} failed: {_classify_api_error(e)}")
-            continue
-
-        for symbol, data in analysis.items():
-            try:
-                if not data or not hasattr(data, 'indicators'):
-                    continue
-
-                indicators = data.indicators
-
-                # Get recommendation values
-                recommend_all = indicators.get("Recommend.All", 0) or 0
-                recommend_ma = indicators.get("Recommend.MA", 0) or 0
-                recommend_other = indicators.get("Recommend.Other", 0) or 0
-
-                # Get signal type
-                signal = get_signal_text(recommend_all)
-
-                # Apply signal filter
-                if signal_filter != "any":
-                    if signal_filter == "STRONG_BUY" and recommend_all < 0.5:
-                        continue
-                    elif signal_filter == "BUY" and (recommend_all < 0.1 or recommend_all >= 0.5):
-                        continue
-                    elif signal_filter == "NEUTRAL" and (recommend_all <= -0.1 or recommend_all >= 0.1):
-                        continue
-                    elif signal_filter == "SELL" and (recommend_all > -0.1 or recommend_all <= -0.5):
-                        continue
-                    elif signal_filter == "STRONG_SELL" and recommend_all > -0.5:
-                        continue
-
-                # Apply minimum strength filter
-                if abs(recommend_all) < min_strength:
-                    continue
-
-                # Get price data
-                close = indicators.get('close', 0)
-                open_price = indicators.get('open', close)
-                change_pct = ((close - open_price) / open_price) * 100 if open_price else 0
-
-                results.append({
-                    "symbol": symbol,
-                    "price": round(close, 6) if close else None,
-                    "change_percent": round(change_pct, 2),
-                    "recommendations": {
-                        "overall": {
-                            "value": round(recommend_all, 3),
-                            "signal": signal
-                        },
-                        "moving_averages": {
-                            "value": round(recommend_ma, 3),
-                            "signal": get_signal_text(recommend_ma)
-                        },
-                        "oscillators": {
-                            "value": round(recommend_other, 3),
-                            "signal": get_signal_text(recommend_other)
-                        }
-                    },
-                    "signal_strength": abs(round(recommend_all, 3)),
-                    "agreement": "ALIGNED" if (recommend_ma > 0) == (recommend_other > 0) else "DIVERGENT",
-                    "technical_data": {
-                        "rsi": round(indicators.get("RSI", 50), 2),
-                        "macd": round(indicators.get("MACD.macd", 0), 6),
-                        "adx": round(indicators.get("ADX", 0), 2)
-                    }
-                })
-
-            except Exception:
-                continue
-
-    # If all batches failed, raise an error with the last error message
-    if failed_batches == total_batches and last_error is not None:
-        raise RuntimeError(_classify_api_error(last_error))
-
-    # Sort by signal strength (strongest first)
-    results.sort(key=lambda x: x["signal_strength"], reverse=True)
-
-    return results[:limit]
-
-
 # =============================================================================
-# Theory-Based Analysis Tools (v2.0.0)
+# Theory-Based Analysis Tools (v2.0 Analyzers)
 # =============================================================================
 
 def _fetch_ohlcv_for_symbol(symbol: str, exchange: str, timeframe: str, limit: int = 200) -> OHLCVData:
@@ -2410,7 +1804,7 @@ def _fetch_ohlcv_for_symbol(symbol: str, exchange: str, timeframe: str, limit: i
 
 
 @mcp.tool()
-def dow_theory_trend(
+def dow_theory_analyzer(
     symbol: str,
     exchange: str = "KUCOIN",
     timeframe: str = "1D",
@@ -2434,11 +1828,11 @@ def dow_theory_trend(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_dow_theory(data, mode=mode)
     except Exception as e:
-        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "dow_theory_trend")
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "dow_theory_analyzer")
 
 
 @mcp.tool()
-def ichimoku_insight(
+def ichimoku_analyzer(
     symbol: str,
     exchange: str = "KUCOIN",
     timeframe: str = "1D",
@@ -2462,7 +1856,7 @@ def ichimoku_insight(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_ichimoku(data, mode=mode)
     except Exception as e:
-        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "ichimoku_insight")
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "ichimoku_analyzer")
 
 
 @mcp.tool()
@@ -2494,7 +1888,7 @@ def vsa_analyzer(
 
 
 @mcp.tool()
-def chart_pattern_finder(
+def chart_pattern_analyzer(
     symbol: str,
     exchange: str = "KUCOIN",
     timeframe: str = "1D",
@@ -2518,11 +1912,11 @@ def chart_pattern_finder(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_chart_patterns(data, mode=mode)
     except Exception as e:
-        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "chart_pattern_finder")
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "chart_pattern_analyzer")
 
 
 @mcp.tool()
-def wyckoff_phase_detector(
+def wyckoff_analyzer(
     symbol: str,
     exchange: str = "KUCOIN",
     timeframe: str = "1D",
@@ -2546,7 +1940,7 @@ def wyckoff_phase_detector(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_wyckoff(data, mode=mode)
     except Exception as e:
-        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "wyckoff_phase_detector")
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "wyckoff_analyzer")
 
 
 @mcp.tool()
@@ -2606,7 +2000,7 @@ def chan_theory_analyzer(
 
 
 @mcp.tool()
-def harmonic_pattern_detector(
+def harmonic_analyzer(
     symbol: str,
     exchange: str = "KUCOIN",
     timeframe: str = "1D",
@@ -2630,7 +2024,7 @@ def harmonic_pattern_detector(
         data = _fetch_ohlcv_for_symbol(symbol, exchange, timeframe)
         return analyze_harmonic(data, mode=mode)
     except Exception as e:
-        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "harmonic_pattern_detector")
+        return build_error_result(f"Error analyzing {symbol}: {str(e)}", "harmonic_analyzer")
 
 
 @mcp.tool()

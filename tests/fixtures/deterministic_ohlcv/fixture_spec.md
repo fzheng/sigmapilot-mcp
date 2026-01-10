@@ -16,8 +16,8 @@ These fixtures provide reproducible test data with known patterns for validating
 - **Symbol**: BTC (simulated)
 - **Timeframe**: 1 hour
 - **Pattern**: Clear uptrend with higher highs and higher lows
-- **Bars**: 30
-- **Price Range**: $42,000 → $49,500
+- **Bars**: 100
+- **Price Range**: $40,000 → $60,000
 - **Expected Analysis**:
   - Dow Theory: Bullish (primary uptrend)
   - Trend: Strong upward momentum
@@ -27,8 +27,8 @@ These fixtures provide reproducible test data with known patterns for validating
 - **Symbol**: ETH (simulated)
 - **Timeframe**: 4 hours
 - **Pattern**: Clear downtrend with lower highs and lower lows
-- **Bars**: 25
-- **Price Range**: $2,500 → $1,620
+- **Bars**: 100
+- **Price Range**: $2,500 → $500
 - **Expected Analysis**:
   - Dow Theory: Bearish (primary downtrend)
   - Trend: Strong downward momentum
@@ -38,7 +38,7 @@ These fixtures provide reproducible test data with known patterns for validating
 - **Symbol**: SOL (simulated)
 - **Timeframe**: 1 day
 - **Pattern**: Range-bound consolidation
-- **Bars**: 30
+- **Bars**: 100
 - **Price Range**: $97 - $108 (oscillating around $102-103)
 - **Expected Analysis**:
   - Dow Theory: Neutral (no clear trend)
@@ -84,6 +84,70 @@ All fixtures maintain:
 - Realistic price movements
 - Consistent timestamp intervals
 - Positive volume values
+
+### btc_double_top.csv
+- **Symbol**: BTC (simulated)
+- **Timeframe**: 1 hour
+- **Pattern**: Double Top reversal pattern
+- **Bars**: 100
+- **Price Range**: $40,000 → $45,200 → $34,300
+- **Structure**:
+  - First peak: ~$45,000 (bar 26-27)
+  - Pullback to ~$43,000 (bar 36)
+  - Second peak: ~$45,000 (bar 47-48)
+  - Breakdown below neckline with continuation
+- **Expected Analysis**:
+  - Chart Patterns: Double Top detected, bearish
+  - Dow Theory: Bearish (lower high on second peak)
+  - VSA: Distribution signals on peaks
+
+### eth_head_shoulders.csv
+- **Symbol**: ETH (simulated)
+- **Timeframe**: 4 hours
+- **Pattern**: Head & Shoulders reversal pattern
+- **Bars**: 100
+- **Price Range**: $2,000 → $2,500 → $1,510
+- **Structure**:
+  - Left Shoulder: ~$2,300 (bar 15-16)
+  - Head: ~$2,500 (bar 33-34)
+  - Right Shoulder: ~$2,400 (bar 55-56)
+  - Neckline: ~$2,170
+  - Breakdown with continuation
+- **Expected Analysis**:
+  - Chart Patterns: H&S detected, bearish
+  - Dow Theory: Bearish (lower high on right shoulder)
+
+### sol_double_bottom.csv
+- **Symbol**: SOL (simulated)
+- **Timeframe**: 4 hours
+- **Pattern**: Double Bottom reversal pattern (bullish)
+- **Bars**: 100
+- **Price Range**: $120 → $88 → $175
+- **Structure**:
+  - First bottom: ~$90 (bar 30)
+  - Rally to ~$108 (bar 40)
+  - Second bottom: ~$90 (bar 57)
+  - Breakout above neckline with continuation
+- **Expected Analysis**:
+  - Chart Patterns: Double Bottom detected, bullish
+  - Dow Theory: Bullish (higher low confirmed)
+
+### btc_wyckoff_accumulation.csv
+- **Symbol**: BTC (simulated)
+- **Timeframe**: 4 hours
+- **Pattern**: Wyckoff Accumulation structure
+- **Bars**: 100
+- **Price Range**: $45,000 → $41,000 → $53,300
+- **Structure**:
+  - Selling Climax: ~$42,100 (bar 15)
+  - Trading Range: $41,000 - $43,000 (bars 16-40)
+  - Spring: ~$41,000 (bar 40-41) with high volume
+  - Sign of Strength: breakout with volume (bars 41-60)
+  - Markup phase: (bars 60-100)
+- **Expected Analysis**:
+  - Wyckoff: Accumulation phase detected
+  - VSA: Stopping volume, spring, SOS signals
+  - Dow Theory: Bullish (after markup begins)
 
 ## Adding New Fixtures
 

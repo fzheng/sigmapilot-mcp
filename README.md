@@ -8,26 +8,26 @@ A remote Model Context Protocol (MCP) server that provides real-time cryptocurre
 
 ## Features
 
-### Market Screening
-- **Top Gainers/Losers** - Find best and worst performing assets across exchanges
-- **Bollinger Band Scan** - Detect squeeze patterns for potential breakouts
-- **Rating Filter** - Filter assets by Bollinger Band position (-3 to +3 rating)
+### Market Scanners
+- **Top Gainers/Losers Scanner** - Find best and worst performing assets across exchanges
+- **Bollinger Scanner** - Detect squeeze patterns for potential breakouts
+- **Rating Scanner** - Filter assets by Bollinger Band position (-3 to +3 rating)
+- **Volume Scanner** - Find high-volume breakouts with RSI filtering
+- **Pivot Points Scanner** - Find assets near key pivot levels
 
-### Technical Analysis
-- **Coin Analysis** - Comprehensive single-asset analysis with all indicators
-- **Pattern Recognition** - Detect consecutive bullish/bearish candle patterns
-- **Volume Breakout Scanner** - Find high-volume price breakouts
+### Basic Technical Analysis
+- **Basic TA Analyzer** - Comprehensive indicator snapshot with volume analysis
 
-### Theory-Based Analysis Engines (v2.0.0)
-- **Dow Theory** - Primary trend identification with higher highs/lows analysis
-- **Ichimoku Kinko Hyo** - Cloud analysis, TK crosses, trend confirmation
-- **Volume Spread Analysis (VSA)** - Volume-price relationship patterns
-- **Chart Patterns** - Classical patterns (Head & Shoulders, Double Top/Bottom, etc.)
-- **Wyckoff Method** - Accumulation/Distribution phase detection
-- **Elliott Wave** - Wave pattern identification and counting
-- **Chan Theory (缠论)** - Fractal and stroke analysis
-- **Harmonic Patterns** - Gartley, Bat, Butterfly, Crab patterns
-- **Market Profile** - Value Area, POC, profile shape analysis
+### Theory-Based Analysis Engines (v2.0 Analyzers)
+- **Dow Theory Analyzer** - Primary trend identification with higher highs/lows analysis
+- **Ichimoku Analyzer** - Cloud analysis, TK crosses, trend confirmation
+- **VSA Analyzer** - Volume Spread Analysis (smart money signals)
+- **Chart Pattern Analyzer** - Classical patterns (Head & Shoulders, Double Top/Bottom, etc.)
+- **Wyckoff Analyzer** - Accumulation/Distribution phase detection
+- **Elliott Wave Analyzer** - Wave pattern identification and counting
+- **Chan Theory Analyzer** - Fractal and stroke analysis (缠论)
+- **Harmonic Analyzer** - Gartley, Bat, Butterfly, Crab patterns
+- **Market Profile Analyzer** - Value Area, POC, profile shape analysis
 
 ### Technical Indicators
 - **Bollinger Bands** - BBW, position, rating, squeeze detection
@@ -145,35 +145,32 @@ For local development or direct Claude Desktop connection (stdio mode).
 
 3. **Restart Claude Desktop**
 
-## Available Tools (19 Total)
+## Available Tools (16 Total)
 
-### Market Screening Tools (10)
+### Market Scanners (6)
 
 | Tool | Description |
 |------|-------------|
-| `top_gainers` | Top performing assets by exchange/timeframe |
-| `top_losers` | Worst performing assets by exchange/timeframe |
-| `bollinger_scan` | Find assets with Bollinger Band squeeze |
-| `rating_filter` | Filter by BB rating (-3 to +3) |
-| `coin_analysis` | Complete technical analysis for a symbol |
-| `candle_pattern_scanner` | Detect bullish/bearish patterns (consecutive & advanced modes) |
-| `volume_scanner` | Volume breakout detection with RSI filtering (breakout & smart modes) |
-| `volume_analysis` | Detailed volume confirmation analysis for a symbol |
+| `top_gainers_scanner` | Top performing assets by exchange/timeframe |
+| `top_losers_scanner` | Worst performing assets by exchange/timeframe |
+| `bollinger_scanner` | Find assets with Bollinger Band squeeze |
+| `rating_scanner` | Filter by BB rating (-3 to +3) |
+| `volume_scanner` | Volume breakout detection with RSI filtering |
 | `pivot_points_scanner` | Find coins near pivot point levels (Classic/Fibonacci/Camarilla) |
-| `tradingview_recommendation` | Scan by TradingView Buy/Sell signals |
 
-### Theory-Based Analysis Tools (9 - v2.0.0)
+### Analyzers (10)
 
 | Tool | Description |
 |------|-------------|
-| `dow_theory_trend` | Analyze trends using Dow Theory (higher highs/lows) |
-| `ichimoku_insight` | Ichimoku Kinko Hyo analysis (cloud, TK cross, Chikou) |
+| `basic_ta_analyzer` | Basic technical analysis snapshot (indicators + volume analysis) |
+| `dow_theory_analyzer` | Analyze trends using Dow Theory (higher highs/lows) |
+| `ichimoku_analyzer` | Ichimoku Kinko Hyo analysis (cloud, TK cross, Chikou) |
 | `vsa_analyzer` | Volume Spread Analysis (smart money signals) |
-| `chart_pattern_finder` | Classical chart patterns (H&S, triangles, double top/bottom) |
-| `wyckoff_phase_detector` | Wyckoff phases (accumulation, distribution, markup, markdown) |
+| `chart_pattern_analyzer` | Classical chart patterns (H&S, triangles, double top/bottom) |
+| `wyckoff_analyzer` | Wyckoff phases (accumulation, distribution, markup, markdown) |
 | `elliott_wave_analyzer` | Elliott Wave pattern analysis (impulse/corrective) |
 | `chan_theory_analyzer` | Chan Theory/Chanlun (fractals, strokes, segments, hubs) |
-| `harmonic_pattern_detector` | Harmonic patterns (Gartley, Bat, Butterfly, Crab) |
+| `harmonic_analyzer` | Harmonic patterns (Gartley, Bat, Butterfly, Crab) |
 | `market_profile_analyzer` | Market Profile (POC, Value Area, profile shape) |
 
 ## Bollinger Band Rating System
@@ -193,9 +190,12 @@ For local development or direct Claude Desktop connection (stdio mode).
 ```
 "Show me top 10 crypto gainers on KuCoin in 15 minutes"
 "Find coins with Bollinger Band squeeze on Binance"
-"Analyze BTCUSDT with all technical indicators"
-"Find stocks with strong buy signals on NASDAQ"
+"Analyze BTCUSDT with basic technical indicators"
 "Show volume breakouts on Bybit"
+"Analyze ETHUSDT using Dow Theory"
+"Check Ichimoku signals for BTCUSDT on the daily timeframe"
+"Find Wyckoff accumulation patterns on SOLUSDT"
+"Detect harmonic patterns on BTCUSDT 4h chart"
 ```
 
 ## Development

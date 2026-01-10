@@ -101,11 +101,6 @@ This document tracks development tasks, improvements, and known issues.
 - [ ] End-to-end tests for MCP tools
 - [ ] Add tests for error response schema validation in theory-based tools
 
-### Infrastructure
-- [ ] Set up GitHub Actions for CI/CD
-- [ ] Add code coverage reporting to CI
-- [ ] Automated Railway deployment on push
-
 ## Medium Priority
 
 ### Code Quality (from v2.0.0 Code Review)

@@ -6,6 +6,12 @@ This module provides:
 - Mappings between exchange names and TradingView screener types
 - Timeframe conversion utilities
 - Configuration constants
+
+Note: For v2.0.0 theory-based engines, see also:
+- sigmapilot_mcp.core.sanitize: Extended input sanitization
+- sigmapilot_mcp.core.timeframes: Multi-timeframe utilities
+- sigmapilot_mcp.core.confidence: Confidence calculations
+- sigmapilot_mcp.core.schemas: Structured output schemas
 """
 
 from __future__ import annotations

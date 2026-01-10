@@ -1,4 +1,4 @@
-# Remote Deployment Guide
+# Remote Deployment Guide - SigmaPilot MCP Server v2.0.0
 
 This guide covers deploying SigmaPilot MCP Server to Railway with Auth0 authentication.
 

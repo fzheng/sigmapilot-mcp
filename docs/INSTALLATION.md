@@ -1,4 +1,4 @@
-# Installation Guide - SigmaPilot MCP Server v1.2.0
+# Installation Guide - SigmaPilot MCP Server v2.0.0
 
 This guide covers both remote deployment (recommended) and local installation options.
 
@@ -104,12 +104,17 @@ Ask Claude:
 "Can you show me the available SigmaPilot tools?"
 ```
 
-You should see tools like:
-- `top_gainers`
-- `top_losers`
-- `bollinger_scan`
-- `coin_analysis`
-- `list_exchanges`
+You should see 19 tools:
+
+**Market Screening (10 tools):**
+- `top_gainers`, `top_losers`, `bollinger_scan`, `rating_filter`, `coin_analysis`
+- `candle_pattern_scanner`, `volume_scanner`, `volume_analysis`
+- `pivot_points_scanner`, `tradingview_recommendation`
+
+**Theory-Based Analysis (9 tools):**
+- `dow_theory_trend`, `ichimoku_insight`, `vsa_analyzer`, `chart_pattern_finder`
+- `wyckoff_phase_detector`, `elliott_wave_analyzer`, `chan_theory_analyzer`
+- `harmonic_pattern_detector`, `market_profile_analyzer`
 
 ## Local Development Setup
 
@@ -130,7 +135,7 @@ make test
 uv run python src/sigmapilot_mcp/server.py
 
 # Run as remote server (HTTP mode)
-uv run python main.py
+uv run python src/sigmapilot_mcp/server.py streamable-http --port 8000
 ```
 
 ### Windows Development Config
@@ -180,12 +185,21 @@ uv run python main.py
    "Find coins with Bollinger Band squeeze on Binance"
    ```
 
+4. **Theory-Based Analysis (v2.0.0):**
+   ```
+   "Analyze BTCUSDT using Dow Theory on the daily timeframe"
+   "What does Ichimoku say about ETHUSDT on 4H?"
+   "Find harmonic patterns on BTCUSDT"
+   ```
+
 ### Expected Results
 
 - Real-time price data
 - Technical indicator values (RSI, EMA, ATR, etc.)
 - Bollinger Band ratings (-3 to +3)
 - Trading signals (BUY, SELL, NEUTRAL)
+- Theory-based analysis with confidence scores (0-100)
+- Structured JSON with status, attribution, and invalidation levels
 
 ## Troubleshooting
 

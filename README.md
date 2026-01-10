@@ -18,7 +18,18 @@ A remote Model Context Protocol (MCP) server that provides real-time cryptocurre
 - **Pattern Recognition** - Detect consecutive bullish/bearish candle patterns
 - **Volume Breakout Scanner** - Find high-volume price breakouts
 
-### Indicators Included
+### Theory-Based Analysis Engines (v2.0.0)
+- **Dow Theory** - Primary trend identification with higher highs/lows analysis
+- **Ichimoku Kinko Hyo** - Cloud analysis, TK crosses, trend confirmation
+- **Volume Spread Analysis (VSA)** - Volume-price relationship patterns
+- **Chart Patterns** - Classical patterns (Head & Shoulders, Double Top/Bottom, etc.)
+- **Wyckoff Method** - Accumulation/Distribution phase detection
+- **Elliott Wave** - Wave pattern identification and counting
+- **Chan Theory (缠论)** - Fractal and stroke analysis
+- **Harmonic Patterns** - Gartley, Bat, Butterfly, Crab patterns
+- **Market Profile** - Value Area, POC, profile shape analysis
+
+### Technical Indicators
 - **Bollinger Bands** - BBW, position, rating, squeeze detection
 - **Moving Averages** - SMA (5, 10, 20, 30, 50, 100, 200), EMA (5, 9, 10, 21, 30, 50, 100, 200), Hull MA, VWMA
 - **Ichimoku Cloud** - Tenkan-sen, Kijun-sen, Senkou Span A/B, TK Cross signals
@@ -134,7 +145,9 @@ For local development or direct Claude Desktop connection (stdio mode).
 
 3. **Restart Claude Desktop**
 
-## Available Tools (10 Total)
+## Available Tools (19 Total)
+
+### Market Screening Tools (10)
 
 | Tool | Description |
 |------|-------------|
@@ -148,6 +161,20 @@ For local development or direct Claude Desktop connection (stdio mode).
 | `volume_analysis` | Detailed volume confirmation analysis for a symbol |
 | `pivot_points_scanner` | Find coins near pivot point levels (Classic/Fibonacci/Camarilla) |
 | `tradingview_recommendation` | Scan by TradingView Buy/Sell signals |
+
+### Theory-Based Analysis Tools (9 - v2.0.0)
+
+| Tool | Description |
+|------|-------------|
+| `dow_theory_trend` | Analyze trends using Dow Theory (higher highs/lows) |
+| `ichimoku_insight` | Ichimoku Kinko Hyo analysis (cloud, TK cross, Chikou) |
+| `vsa_analyzer` | Volume Spread Analysis (smart money signals) |
+| `chart_pattern_finder` | Classical chart patterns (H&S, triangles, double top/bottom) |
+| `wyckoff_phase_detector` | Wyckoff phases (accumulation, distribution, markup, markdown) |
+| `elliott_wave_analyzer` | Elliott Wave pattern analysis (impulse/corrective) |
+| `chan_theory_analyzer` | Chan Theory/Chanlun (fractals, strokes, segments, hubs) |
+| `harmonic_pattern_detector` | Harmonic patterns (Gartley, Bat, Butterfly, Crab) |
+| `market_profile_analyzer` | Market Profile (POC, Value Area, profile shape) |
 
 ## Bollinger Band Rating System
 

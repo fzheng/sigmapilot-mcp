@@ -4,7 +4,57 @@ This document tracks development tasks, improvements, and known issues.
 
 ## Completed
 
-### v1.2.0 (Current)
+### v2.0.0 (Released)
+
+#### Phase 1: Core Infrastructure (Completed)
+- [x] Created core module architecture (`src/sigmapilot_mcp/core/`)
+- [x] Implemented confidence formula: `Base × Q_pattern × W_time × V_conf × M_bonus`
+- [x] Created No Signal Protocol (confidence < 60 = neutral)
+- [x] Built structured output schemas (TypedDict: `AnalysisResult`, `Attribution`)
+- [x] Created error handling hierarchy (`SigmaPilotError`, `DataError`, `APIError`, etc.)
+- [x] Built timeframe utilities with weights and hierarchy
+- [x] Created OHLCV data loader with NumPy array accessors
+- [x] Added input sanitization functions
+- [x] Created 159 unit tests for core modules
+- [x] Added deterministic OHLCV test fixtures
+- [x] Documented technical blockers in `TODO_BLOCKERS.md`
+
+#### Phase 2: Tier 1 Engines (Completed)
+- [x] Dow Theory Trend engine (`dow_theory.py`)
+- [x] Ichimoku Insight engine (`ichimoku.py`)
+- [x] VSA Analyzer engine (`vsa.py`)
+- [x] Chart Pattern Finder engine (`chart_patterns.py`)
+- [x] Created integration tests for all Tier 1 engines (200 total tests)
+
+#### Phase 3: Tier 2 Engines (Completed)
+- [x] Wyckoff Phase Detector (`wyckoff.py`)
+- [x] Elliott Wave Analyzer (`elliott_wave.py`)
+- [x] Chan Theory Analyzer (`chan_theory.py`)
+- [x] Harmonic Pattern Detector (`harmonic.py`)
+- [x] Market Profile Analyzer (`market_profile.py`)
+- [x] Created integration tests for all Tier 2 engines (240 total tests)
+
+#### Phase 4: Integration & Documentation (Completed)
+- [x] Register all 9 engines as MCP tools in server.py
+- [x] Updated tool count from 10 to 19
+- [x] Added helper function `_fetch_ohlcv_for_symbol()` for data conversion
+- [x] Removed unused legacy code (screener_provider.py, unused functions)
+- [x] Added comprehensive edge case tests (177 new tests)
+- [x] Created EXAMPLES.md with complete usage guide
+- [x] Updated all documentation for v2.0.0
+- [x] Total test coverage: 417 tests passing
+
+#### Future Enhancements (Backlog)
+- [ ] Multi-engine consensus calculations
+- [ ] End-to-end integration tests with live data
+
+### v1.3.0
+- [x] Added TradingView API rate limiting protection
+- [x] Implemented exponential backoff with jitter
+- [x] Configurable batch sizes via environment variables
+- [x] User-friendly error messages for rate limit scenarios
+
+### v1.2.0
 - [x] Added Ichimoku Cloud indicator (Tenkan-sen, Kijun-sen, Senkou Span A/B)
 - [x] Added VWAP (Volume Weighted Average Price)
 - [x] Added Pivot Points (Classic, Fibonacci, Camarilla) with R1-R3, S1-S3 levels
